@@ -5,7 +5,14 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": false,
     "incremental": true,
-    "plugins": [{ "name": "next" }]
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["next-env.d.ts", "src", ".next/types/**/*.ts"]
 }

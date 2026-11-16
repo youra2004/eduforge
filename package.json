@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:migrate": "pnpm --filter @eduforge/db migrate",
-    "db:rollback": "pnpm --filter @eduforge/db rollback"
+    "db:rollback": "pnpm --filter @eduforge/db rollback",
+    "create-admin": "pnpm --filter @eduforge/core create-admin"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

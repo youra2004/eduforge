@@ -7,7 +7,9 @@ if (existsSync('../../.env')) process.loadEnvFile('../../.env');
 const nextConfig: NextConfig = {
   // Workspace packages ship TypeScript sources.
   transpilePackages: ['@eduforge/core', '@eduforge/db'],
-  serverExternalPackages: ['pg'],
+  serverExternalPackages: ['pg', '@node-rs/argon2'],
+  // Lets pages call forbidden() to answer 403.
+  experimental: { authInterrupts: true },
   agentRules: false,
 };
 
