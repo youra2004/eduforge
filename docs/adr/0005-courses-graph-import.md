@@ -4,3 +4,4 @@
 - Only `draft` and `changes_requested` versions can be edited; every later status (audit, review, published, archived) is frozen. The check is part of the `UPDATE` statement, so a concurrent status change cannot slip past it. "Edit" means the version's own fields for now; graph editing arrives with the editor (M08) and must go through the same guard.
 - A new version can only start from a `published` one: it copies skills, nodes, edges and node-skill links with fresh ids, links `parent_version_id`, and starts as a draft with no audit results. Content and questions are copied here once M03/M04 add them.
 - Drafts are visible to the course owner, admins and experts; published versions to every signed-in user. Others get 404, same as for a missing id.
+- Ownership alone gives an author access to their course, even if the `author` role is later removed; revisit with the audit (M08). Request bodies are not size-limited (import is admin-only).

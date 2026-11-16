@@ -1,5 +1,5 @@
 import { getVersionGraph, updateVersion } from '@eduforge/core';
-import { getCurrentUser, getDb, readJson, route } from '@/lib/server';
+import { getCurrentUser, getDb, readCourseJson, route } from '@/lib/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +13,6 @@ export const GET = route(async (_req: Request, { params }: Ctx) => {
 export const PATCH = route(async (req: Request, { params }: Ctx) => {
   const { id } = await params;
   return Response.json({
-    version: await updateVersion(getDb(), await getCurrentUser(), id, await readJson(req)),
+    version: await updateVersion(getDb(), await getCurrentUser(), id, await readCourseJson(req)),
   });
 });

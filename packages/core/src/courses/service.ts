@@ -9,14 +9,18 @@ import {
   users,
   type CourseVersion,
   type Db,
+  roles as allRoles,
   type VersionStatus,
 } from '@eduforge/db';
 import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { AuthError, hasRole, type AuthUser } from '../auth/guard';
+import { AuthError, hasRole, requireRole, type AuthUser } from '../auth/guard';
 import { CourseError } from './errors';
 import { validateGraph, type CourseIssue } from './graph';
 import { declaredLevels, parseCourseImport } from './import';
+
+/** Anyone holding a role may browse; a signed-in user with every role removed may not. */
+const viewer = (user: AuthUser | null) => requireRole(user, ...allRoles);
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
@@ -93,8 +97,7 @@ export async function importCourse(db: Db, input: unknown, authorId: string) {
           .insert(nodeEdges)
           .values(
             rows.map((e) => ({ prereqNodeId: nodeIds.get(e.from)!, nodeId: nodeIds.get(e.to)! })),
-          )
-          .onConflictDoNothing(),
+          ),
       );
     });
   } catch (err) {
@@ -113,7 +116,7 @@ const canEdit = (user: AuthUser, authorId: string) =>
   authorId === user.id || hasRole(user, 'admin');
 
 async function loadVersion(db: Db | Tx, user: AuthUser | null, versionId: string) {
-  if (!user) throw new AuthError('unauthenticated');
+  const viewing = viewer(user);
   const [row] = z.uuid().safeParse(versionId).success
     ? await db
         .select({ version: courseVersions, course: courses })
@@ -122,15 +125,15 @@ async function loadVersion(db: Db | Tx, user: AuthUser | null, versionId: string
         .where(eq(courseVersions.id, versionId))
     : [];
   // Versions the user may not see look the same as missing ones.
-  if (!row || !canView(user, row.version, row.course.authorId)) {
+  if (!row || !canView(viewing, row.version, row.course.authorId)) {
     throw new CourseError('course_not_found');
   }
-  return { user, ...row };
+  return { user: viewing, ...row };
 }
 
 /** The versions the user may see, newest course first. */
-export async function listCourseVersions(db: Db, user: AuthUser | null) {
-  if (!user) throw new AuthError('unauthenticated');
+export async function listCourseVersions(db: Db, caller: AuthUser | null) {
+  const user = viewer(caller);
   const all = hasRole(user, 'admin', 'expert');
   return db
     .select({
@@ -206,7 +209,7 @@ export async function updateVersion(
   versionId: string,
   input: unknown,
 ) {
-  const { version, course, user: actor } = await loadVersion(db, user, versionId);
+  const { course, user: actor } = await loadVersion(db, user, versionId);
   if (!canEdit(actor, course.authorId)) throw new AuthError('forbidden');
   const parsed = updateInput.safeParse(input);
   if (!parsed.success || Object.keys(parsed.data).length === 0) {
@@ -214,7 +217,6 @@ export async function updateVersion(
       { code: 'schema', message: 'Expected title, description and/or declaredLevel.' },
     ]);
   }
-  if (!EDITABLE_STATUSES.includes(version.status)) throw new CourseError('version_locked');
   const [row] = await db
     .update(courseVersions)
     .set(parsed.data)

@@ -102,30 +102,25 @@ describe('importCourse', () => {
     expect(await counts()).toEqual(before);
   });
 
-  it('rolls back everything if the database rejects a late insert', async () => {
+  it('rejects a duplicate slug and saves nothing', async () => {
     const author = await makeUser(['author']);
-    const before = await counts();
     const taken = slug();
     await importCourse(db, course({ slug: taken }), author.id);
-    // Same slug: the courses insert fails, so no version, skill or node may remain.
+    const before = await counts();
     expect(await codeOf(importCourse(db, course({ slug: taken }), author.id))).toBe('slug_taken');
-    const after = await counts();
-    expect(after).toEqual([
-      before[0]! + 1,
-      before[1]! + 1,
-      before[2]! + 11,
-      before[3]! + 8,
-      before[4]! + 9,
-    ]);
+    expect(await counts()).toEqual(before);
   });
 
-  it('is transactional: a failure after the course row was written leaves no course behind', async () => {
+  it('is transactional: when a late insert fails, the earlier rows are rolled back', async () => {
+    const author = await makeUser(['author']);
     const before = await counts();
-    // An author id that does not exist makes the very first insert fail on the foreign key.
-    const err = await importCourse(db, course(), '00000000-0000-4000-8000-000000000000').catch(
-      (e) => e,
-    );
+    // Passes validation, but Postgres refuses NUL in text, and nodes are inserted after the course,
+    // version and skills rows.
+    const bad = course();
+    bad.nodes[3].title = 'Цикли\u0000';
+    const err = await importCourse(db, bad, author.id).catch((e) => e);
     expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(CourseError);
     expect(await counts()).toEqual(before);
   });
 });
@@ -135,9 +130,12 @@ describe('visibility', () => {
     const owner = await makeUser(['author']);
     const other = await makeUser(['student']);
     const admin = await makeUser(['admin']);
+    const roleless = await makeUser([]);
     const { versionId } = await importCourse(db, course(), owner.id);
 
     expect(await codeOf(getVersionGraph(db, other, versionId))).toBe('course_not_found');
+    expect(await codeOf(getVersionGraph(db, roleless, versionId))).toBe('forbidden');
+    expect(await codeOf(listCourseVersions(db, roleless))).toBe('forbidden');
     expect(await codeOf(getVersionGraph(db, admin, versionId))).toBe('none');
     expect(await codeOf(getVersionGraph(db, null, versionId))).toBe('unauthenticated');
     expect(await codeOf(getVersionGraph(db, owner, 'not-a-uuid'))).toBe('course_not_found');

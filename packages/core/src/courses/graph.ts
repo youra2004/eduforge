@@ -74,7 +74,7 @@ export function validateGraph(graph: GraphInput): CourseIssue[] {
   if (rest.length > 0) {
     // `rest` also holds nodes merely downstream of a cycle; peel those off (nodes with no
     // successor left in `rest`) so the report names only nodes that sit on a cycle.
-    let onCycle = new Set(rest);
+    const onCycle = new Set(rest);
     for (let changed = true; changed;) {
       changed = false;
       for (const id of onCycle) {
@@ -84,7 +84,6 @@ export function validateGraph(graph: GraphInput): CourseIssue[] {
         }
       }
     }
-    onCycle = onCycle.size > 0 ? onCycle : new Set(rest);
     const ids = [...onCycle];
     issues.push({
       code: 'cycle',

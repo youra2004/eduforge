@@ -63,6 +63,18 @@ export async function readJson(req: Request): Promise<unknown> {
   }
 }
 
+/** `readJson` for course endpoints: a bad body is reported as a course problem, not as a login one. */
+export async function readCourseJson(req: Request): Promise<unknown> {
+  try {
+    return await readJson(req);
+  } catch (err) {
+    if (!(err instanceof AuthError)) throw err;
+    throw new CourseError('invalid_course', [
+      { code: 'schema', message: 'The body must be valid JSON sent as application/json.' },
+    ]);
+  }
+}
+
 /** Wraps a route handler so AuthErrors and CourseErrors become JSON with the right status and a Ukrainian message. */
 export function route<A extends unknown[]>(handler: (...args: A) => Promise<Response>) {
   return async (...args: A): Promise<Response> => {

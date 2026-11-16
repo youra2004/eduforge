@@ -43,7 +43,24 @@ test('an admin imports the seed course and sees its graph', async ({ page }) => 
   await page.screenshot({ path: '.local-agent/proof/m02/course-graph.png', fullPage: true });
 });
 
-test('a student sees no drafts and the course page answers 404', async ({ page, request }) => {
+test('a student cannot see or import a draft course', async ({ browser }) => {
+  const adminEmail = `admin-${uniq()}@e2e.local`;
+  execFileSync('pnpm', ['create-admin', adminEmail, 'Адмін'], {
+    env: { ...process.env, ADMIN_PASSWORD: PASSWORD },
+    stdio: 'pipe',
+  });
+  const adminCtx = await browser.newContext();
+  const login = await adminCtx.request.post('/api/auth/login', {
+    data: { email: adminEmail, password: PASSWORD },
+  });
+  expect(login.status()).toBe(200);
+  const imported = await adminCtx.request.post('/api/admin/courses/import', {
+    data: { ...demo, slug: `python-${uniq()}` },
+  });
+  const { versionId } = await imported.json();
+
+  const ctx = await browser.newContext();
+  const page = await ctx.newPage();
   await page.goto('/register');
   await page.getByLabel('Імʼя').fill('Студент');
   await page.getByLabel('Email').fill(`student-${uniq()}@e2e.local`);
@@ -52,7 +69,16 @@ test('a student sees no drafts and the course page answers 404', async ({ page, 
   await page.getByRole('button', { name: 'Зареєструватися' }).click();
   await expect(page.getByText(/Вітаємо/)).toBeVisible();
 
+  expect((await page.goto(`/courses/${versionId}`))?.status()).toBe(404);
+  expect((await page.request.get(`/api/courses/versions/${versionId}`)).status()).toBe(404);
+  const list = await (await page.request.get('/api/courses')).json();
+  expect(list.versions.some((v: { versionId: string }) => v.versionId === versionId)).toBe(false);
   expect((await page.request.post('/api/admin/courses/import', { data: demo })).status()).toBe(403);
-  expect((await page.goto('/courses/00000000-0000-4000-8000-000000000000'))?.status()).toBe(404);
-  expect((await request.get('/api/courses')).status()).toBe(401);
+  expect((await ctx.request.get('/api/courses')).status()).toBe(200);
+
+  const guest = await browser.newContext();
+  expect((await guest.request.get('/api/courses')).status()).toBe(401);
+  await adminCtx.close();
+  await ctx.close();
+  await guest.close();
 });
