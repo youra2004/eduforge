@@ -22,6 +22,13 @@
       "when": 1794832291244,
       "tag": "0002_auth_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794838523286,
+      "tag": "0003_courses_graph",
+      "breakpoints": true
     }
   ]
 }

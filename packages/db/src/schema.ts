@@ -1,5 +1,8 @@
+import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -7,8 +10,11 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  real,
+  smallint,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 
@@ -129,3 +135,121 @@ export const loginAttempts = pgTable(
 );
 
 export type User = typeof users.$inferSelect;
+
+// Courses and the knowledge graph (DATA_MODEL.md section 4).
+export const versionStatuses = [
+  'draft',
+  'auditing',
+  'changes_requested',
+  'ready_to_publish',
+  'expert_review',
+  'published',
+  'archived',
+] as const;
+export type VersionStatus = (typeof versionStatuses)[number];
+export const versionStatus = pgEnum('version_status', versionStatuses);
+
+export const courses = pgTable('courses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  authorId: uuid('author_id')
+    .notNull()
+    .references(() => users.id),
+  slug: text('slug').notNull().unique(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// A published version is immutable (D-06); the service layer enforces it.
+export const courseVersions = pgTable(
+  'course_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    courseId: uuid('course_id')
+      .notNull()
+      .references(() => courses.id),
+    versionNo: integer('version_no').notNull(),
+    parentVersionId: uuid('parent_version_id').references((): AnyPgColumn => courseVersions.id),
+    title: text('title').notNull(),
+    description: text('description').notNull().default(''),
+    declaredLevel: text('declared_level'),
+    status: versionStatus('status').notNull().default('draft'),
+    auditAttempts: integer('audit_attempts').notNull().default(0),
+    rating: smallint('rating'),
+    aiLevel: text('ai_level'),
+    aiHardness: real('ai_hardness'),
+    volumeCap: smallint('volume_cap'),
+    auditSummary: jsonb('audit_summary'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+  },
+  (t) => [
+    unique('course_versions_course_version_no_unique').on(t.courseId, t.versionNo),
+    check('course_versions_rating_range', sql`${t.rating} IS NULL OR ${t.rating} BETWEEN 1 AND 10`),
+  ],
+);
+
+export const skills = pgTable(
+  'skills',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    courseVersionId: uuid('course_version_id')
+      .notNull()
+      .references(() => courseVersions.id),
+    name: text('name').notNull(),
+    description: text('description').notNull().default(''),
+    verified: boolean('verified'),
+    verificationNote: text('verification_note'),
+  },
+  (t) => [index('skills_course_version_idx').on(t.courseVersionId)],
+);
+
+export const nodes = pgTable(
+  'nodes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    courseVersionId: uuid('course_version_id')
+      .notNull()
+      .references(() => courseVersions.id),
+    title: text('title').notNull(),
+    summary: text('summary').notNull().default(''),
+    // Optional {x, y} for the graph view/editor; the view lays nodes out itself when it is null.
+    position: jsonb('position').$type<{ x: number; y: number }>(),
+  },
+  (t) => [index('nodes_course_version_idx').on(t.courseVersionId)],
+);
+
+// Prerequisite edges, AND semantics (D-12): `nodeId` opens once every `prereqNodeId` pointing at it is passed.
+export const nodeEdges = pgTable(
+  'node_edges',
+  {
+    prereqNodeId: uuid('prereq_node_id')
+      .notNull()
+      .references(() => nodes.id),
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => nodes.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.prereqNodeId, t.nodeId] }),
+    check('node_edges_no_self_loop', sql`${t.prereqNodeId} <> ${t.nodeId}`),
+    index('node_edges_node_idx').on(t.nodeId),
+  ],
+);
+
+export const nodeSkills = pgTable(
+  'node_skills',
+  {
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => nodes.id),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.nodeId, t.skillId] }),
+    index('node_skills_skill_idx').on(t.skillId),
+  ],
+);
+
+export type Course = typeof courses.$inferSelect;
+export type CourseVersion = typeof courseVersions.$inferSelect;

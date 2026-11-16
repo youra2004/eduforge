@@ -13,17 +13,25 @@ async function exists(sql: string) {
 const hasVector = () => exists("EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'vector')");
 const hasLlmRuns = () => exists("to_regclass('public.llm_runs') IS NOT NULL");
 const hasUsers = () => exists("to_regclass('public.users') IS NOT NULL");
+const hasCourses = () => exists("to_regclass('public.course_versions') IS NOT NULL");
 
 describe('migrations', () => {
   it('apply to an empty DB: vector extension, llm_runs and users exist', async () => {
     expect(await hasVector()).toBe(true);
     expect(await hasLlmRuns()).toBe(true);
     expect(await hasUsers()).toBe(true);
+    expect(await hasCourses()).toBe(true);
   });
 
   it('roll back, and apply again', async () => {
-    const rolledBack = await migrateDown(url, 3);
-    expect(rolledBack).toEqual(['0002_auth_roles', '0001_llm_runs', '0000_enable_vector']);
+    const rolledBack = await migrateDown(url, 4);
+    expect(rolledBack).toEqual([
+      '0003_courses_graph',
+      '0002_auth_roles',
+      '0001_llm_runs',
+      '0000_enable_vector',
+    ]);
+    expect(await hasCourses()).toBe(false);
     expect(await hasUsers()).toBe(false);
     expect(await hasLlmRuns()).toBe(false);
     expect(await hasVector()).toBe(false);
@@ -32,5 +40,6 @@ describe('migrations', () => {
     expect(await hasVector()).toBe(true);
     expect(await hasLlmRuns()).toBe(true);
     expect(await hasUsers()).toBe(true);
+    expect(await hasCourses()).toBe(true);
   });
 });
