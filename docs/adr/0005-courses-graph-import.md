@@ -1,0 +1,6 @@
+# ADR-0005: Course import, editable statuses and visibility
+
+- Import is admin-only (`POST /api/admin/courses/import`, and `pnpm import-course <file> <author email>` for the CLI/seed). The course is owned by the importing admin, or by the given author for the CLI. It always creates version 1 as a `draft`; publishing belongs to the audit (M08). Validation runs before any write and the inserts run in one transaction, so an invalid or conflicting import saves nothing.
+- Only `draft` and `changes_requested` versions can be edited; every later status (audit, review, published, archived) is frozen. The check is part of the `UPDATE` statement, so a concurrent status change cannot slip past it. "Edit" means the version's own fields for now; graph editing arrives with the editor (M08) and must go through the same guard.
+- A new version can only start from a `published` one: it copies skills, nodes, edges and node-skill links with fresh ids, links `parent_version_id`, and starts as a draft with no audit results. Content and questions are copied here once M03/M04 add them.
+- Drafts are visible to the course owner, admins and experts; published versions to every signed-in user. Others get 404, same as for a missing id.

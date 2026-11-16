@@ -1,0 +1,96 @@
+{
+  "slug": "python-basics",
+  "title": "Основи Python",
+  "description": "Вступний курс з програмування мовою Python: від першої програми до роботи з файлами.",
+  "declaredLevel": "junior",
+  "skills": [
+    { "key": "io", "name": "Ввід і вивід", "description": "Використання print() та input()." },
+    {
+      "key": "vars",
+      "name": "Змінні та типи даних",
+      "description": "Створення змінних, int, float, str, bool."
+    },
+    {
+      "key": "ops",
+      "name": "Оператори",
+      "description": "Арифметичні, порівняння та логічні оператори."
+    },
+    { "key": "cond", "name": "Умовні конструкції", "description": "if, elif, else." },
+    { "key": "loops", "name": "Цикли", "description": "for, while, break, continue." },
+    {
+      "key": "funcs",
+      "name": "Функції",
+      "description": "Оголошення, параметри, значення, що повертається."
+    },
+    {
+      "key": "lists",
+      "name": "Списки",
+      "description": "Створення, індексація, зрізи, методи списків."
+    },
+    { "key": "dicts", "name": "Словники", "description": "Пари ключ-значення, перебір словника." },
+    { "key": "strs", "name": "Рядки", "description": "Методи рядків, форматування, f-рядки." },
+    { "key": "files", "name": "Файли", "description": "Читання та запис файлів, with open()." },
+    { "key": "errors", "name": "Обробка помилок", "description": "try, except, finally." }
+  ],
+  "nodes": [
+    {
+      "key": "start",
+      "title": "Перші кроки",
+      "summary": "Запуск програми, print() та input().",
+      "skills": ["io", "vars"]
+    },
+    {
+      "key": "types",
+      "title": "Типи даних і оператори",
+      "summary": "Числа, рядки, логічні значення та дії над ними.",
+      "skills": ["vars", "ops"]
+    },
+    {
+      "key": "conditions",
+      "title": "Умови",
+      "summary": "Розгалуження if / elif / else.",
+      "skills": ["ops", "cond"]
+    },
+    {
+      "key": "loops",
+      "title": "Цикли",
+      "summary": "Повторення дій: for і while.",
+      "skills": ["cond", "loops"]
+    },
+    {
+      "key": "functions",
+      "title": "Функції",
+      "summary": "Як розбити програму на частини.",
+      "skills": ["funcs", "vars"]
+    },
+    {
+      "key": "collections",
+      "title": "Списки та словники",
+      "summary": "Колекції даних і перебір їх у циклі.",
+      "skills": ["lists", "dicts", "loops"]
+    },
+    {
+      "key": "strings",
+      "title": "Рядки",
+      "summary": "Методи рядків і форматування.",
+      "skills": ["strs", "lists"]
+    },
+    {
+      "key": "files",
+      "title": "Файли та помилки",
+      "summary": "Читання й запис файлів, обробка винятків.",
+      "skills": ["files", "errors", "strs"]
+    }
+  ],
+  "edges": [
+    { "from": "start", "to": "types" },
+    { "from": "types", "to": "conditions" },
+    { "from": "conditions", "to": "loops" },
+    { "from": "types", "to": "functions" },
+    { "from": "loops", "to": "collections" },
+    { "from": "functions", "to": "collections" },
+    { "from": "types", "to": "strings" },
+    { "from": "collections", "to": "files" },
+    { "from": "strings", "to": "files" }
+  ]
+}
