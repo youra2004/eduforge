@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
-import { AuthError, getSessionUser, loadConfig, requireRole, type AuthUser } from '@eduforge/core';
-import { createDb, type Db, type Role } from '@eduforge/db';
+import { AuthError, getSessionUser, loadConfig, type AuthUser } from '@eduforge/core';
+import { createDb, type Db } from '@eduforge/db';
 import { errorMessages } from './messages';
 
 export const SESSION_COOKIE = 'eduforge_session';
@@ -37,20 +37,25 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return token ? getSessionUser(getDb(), token) : null;
 }
 
-/** For route handlers: the current user, or an AuthError (401/403) if they lack every role. */
-export async function requireApiRole(...roles: Role[]): Promise<AuthUser> {
-  return requireRole(await getCurrentUser(), ...roles);
-}
-
-export function clientIp(req: Request): string | undefined {
-  return (
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    undefined
-  );
+/**
+ * The client IP as seen by the `hops`-th trusted proxy from the right of X-Forwarded-For.
+ * Anything further left is client-supplied and spoofable; with hops = 0 the header is ignored.
+ */
+export function clientIp(req: Request, hops: number): string | undefined {
+  if (hops < 1) return undefined;
+  const parts =
+    req.headers
+      .get('x-forwarded-for')
+      ?.split(',')
+      .map((p) => p.trim()) ?? [];
+  return parts[parts.length - hops] || undefined;
 }
 
 export async function readJson(req: Request): Promise<unknown> {
+  // Browsers cannot send application/json cross-site without a CORS preflight, which blocks login CSRF.
+  if (!req.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+    throw new AuthError('invalid_input');
+  }
   try {
     return await req.json();
   } catch {

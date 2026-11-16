@@ -4,12 +4,6 @@ import { expect, test, type Page } from '@playwright/test';
 const PASSWORD = 'correct horse battery';
 const uniq = () => `${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 
-// Each test gets its own fake client IP so failed logins in one test do not rate limit the others.
-test.beforeEach(async ({ context }) => {
-  const n = Math.floor(Math.random() * 250) + 1;
-  await context.setExtraHTTPHeaders({ 'x-forwarded-for': `10.${n}.${n}.${n}` });
-});
-
 async function register(page: Page, email: string, name = 'Олена') {
   await page.goto('/register');
   await page.getByLabel('Імʼя').fill(name);
@@ -84,15 +78,13 @@ test('an admin assigns a role and the user then reaches that page', async ({ bro
   });
 
   const userEmail = `author-${uniq()}@e2e.local`;
-  const userCtx = await browser.newContext({ extraHTTPHeaders: { 'x-forwarded-for': '10.9.9.1' } });
+  const userCtx = await browser.newContext();
   const user = await userCtx.newPage();
   await register(user, userEmail, 'Автор Тест');
   await expect(user.getByText('Вітаємо, Автор Тест!')).toBeVisible();
   expect((await user.goto('/author'))?.status()).toBe(403);
 
-  const adminCtx = await browser.newContext({
-    extraHTTPHeaders: { 'x-forwarded-for': '10.9.9.2' },
-  });
+  const adminCtx = await browser.newContext();
   const admin = await adminCtx.newPage();
   await loginOk(admin, adminEmail);
   await admin.goto('/admin');

@@ -9,7 +9,7 @@ import {
   type Db,
   type Role,
 } from '@eduforge/db';
-import { and, asc, count, eq, gt, lt } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, lt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { CONSENT_VERSIONS } from './consent';
 import { AuthError, requireRole, type AuthUser } from './guard';
@@ -109,23 +109,34 @@ export async function login(db: Db, settings: AuthSettings, input: unknown, ip?:
   const keys = [`email:${data.email}`, ...(ip ? [`ip:${ip}`] : [])];
   const since = new Date(Date.now() - settings.loginWindowSeconds * 1000);
 
-  // Old rows are only useful inside the window.
-  await db.delete(loginAttempts).where(lt(loginAttempts.createdAt, since));
-  for (const key of keys) {
-    const [row] = await db
-      .select({ n: count() })
-      .from(loginAttempts)
-      .where(and(eq(loginAttempts.key, key), gt(loginAttempts.createdAt, since)));
-    if ((row?.n ?? 0) >= settings.loginMaxAttempts) throw new AuthError('rate_limited');
-  }
+  // Count and reserve an attempt in one locked step, so parallel requests cannot all slip under
+  // the limit while argon2 runs. The reservation is released again if the password is right.
+  const reservedIds = await db.transaction(async (tx) => {
+    for (const key of [...keys].sort()) {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${key}))`);
+    }
+    // Old rows are only useful inside the window.
+    await tx.delete(loginAttempts).where(lt(loginAttempts.createdAt, since));
+    for (const key of keys) {
+      const [row] = await tx
+        .select({ n: count() })
+        .from(loginAttempts)
+        .where(and(eq(loginAttempts.key, key), gt(loginAttempts.createdAt, since)));
+      if ((row?.n ?? 0) >= settings.loginMaxAttempts) throw new AuthError('rate_limited');
+    }
+    const rows = await tx
+      .insert(loginAttempts)
+      .values(keys.map((key) => ({ key })))
+      .returning({ id: loginAttempts.id });
+    return rows.map((r) => r.id);
+  });
 
   const [user] = await db.select().from(users).where(eq(users.email, data.email));
   dummyHash ??= hashPassword('dummy-password-for-timing');
   const ok = await verifyPassword(user?.passwordHash ?? (await dummyHash), data.password);
-  if (!user || !ok) {
-    await db.insert(loginAttempts).values(keys.map((key) => ({ key })));
-    throw new AuthError('invalid_credentials');
-  }
+  if (!user || !ok) throw new AuthError('invalid_credentials');
+
+  await db.delete(loginAttempts).where(inArray(loginAttempts.id, reservedIds));
   const session = await createSession(db, user.id, settings.sessionTtlSeconds);
   return { user: (await loadUser(db, user.id))!, ...session };
 }

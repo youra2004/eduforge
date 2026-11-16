@@ -30,6 +30,7 @@ const envSchema = z.object({
   SESSION_TTL_SECONDS: seconds(7 * 24 * 60 * 60),
   LOGIN_MAX_ATTEMPTS: count(5),
   LOGIN_WINDOW_SECONDS: seconds(15 * 60),
+  TRUSTED_PROXY_HOPS: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).default(0)),
 
   EMBEDDING_DIM: count(1024),
   LLM_PROVIDER: z.enum(['mock']).default('mock'),
@@ -60,6 +61,7 @@ function toConfig(env: z.infer<typeof envSchema>) {
       sessionTtlSeconds: env.SESSION_TTL_SECONDS,
       loginMaxAttempts: env.LOGIN_MAX_ATTEMPTS,
       loginWindowSeconds: env.LOGIN_WINDOW_SECONDS,
+      trustedProxyHops: env.TRUSTED_PROXY_HOPS,
     },
     embeddingDim: env.EMBEDDING_DIM,
     llmProvider: env.LLM_PROVIDER,

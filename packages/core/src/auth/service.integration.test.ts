@@ -127,6 +127,36 @@ describe('login and sessions', () => {
     );
   });
 
+  it('lets only loginMaxAttempts parallel wrong guesses through', async () => {
+    const e = email();
+    await reg(e);
+    const results = await Promise.all(
+      Array.from({ length: 12 }, () =>
+        codeOf(login(db, settings, { email: e, password: 'wrong-password' })),
+      ),
+    );
+    expect(results.filter((c) => c === 'invalid_credentials')).toHaveLength(
+      settings.loginMaxAttempts,
+    );
+    expect(results.filter((c) => c === 'rate_limited')).toHaveLength(
+      12 - settings.loginMaxAttempts,
+    );
+  });
+
+  it('a successful login does not leave an attempt behind', async () => {
+    const e = email();
+    await reg(e);
+    for (let i = 0; i < settings.loginMaxAttempts - 1; i++) {
+      await codeOf(login(db, settings, { email: e, password: 'wrong-password' }));
+    }
+    await login(db, settings, { email: e, password: PASSWORD });
+    const rows = await db
+      .select()
+      .from(loginAttempts)
+      .where(eq(loginAttempts.key, `email:${e}`));
+    expect(rows).toHaveLength(settings.loginMaxAttempts - 1);
+  });
+
   it('rate limits per IP across different emails', async () => {
     const ip = `10.0.0.${n++}`;
     for (let i = 0; i < settings.loginMaxAttempts; i++) {
