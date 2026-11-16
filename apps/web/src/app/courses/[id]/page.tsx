@@ -38,6 +38,7 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
       position: n.position ?? { x, y: layer * LAYER_GAP_Y },
       data: {
         title: n.title,
+        href: `/courses/${id}/nodes/${n.id}`,
         summary: n.summary,
         skillNames: n.skillIds.map((s) => skillName.get(s)!),
         state: states.get(n.id)!,

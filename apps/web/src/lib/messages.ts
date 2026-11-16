@@ -16,6 +16,9 @@ export const errorMessages: Record<AuthErrorCode | CourseErrorCode | 'internal',
   version_locked: 'Цю версію курсу не можна змінювати. Створіть нову версію.',
   version_not_published: 'Нову версію можна створити лише з опублікованої.',
   course_not_found: 'Курс не знайдено.',
+  invalid_content: 'Матеріал містить помилки. Перегляньте список проблем.',
+  content_not_found: 'Матеріал не знайдено.',
+  media_not_found: 'Відео не знайдено.',
   internal: 'Щось пішло не так. Спробуйте ще раз.',
 };
 

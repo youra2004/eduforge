@@ -28,18 +28,20 @@ Import a course (the seed is a small Ukrainian demo course; the author must alre
 pnpm import-course packages/core/seed/demo-course.json author@example.com
 ```
 
+Node content (text and video) is edited on the node page, opened from the course graph. Uploaded videos go to `STORAGE_DIR`; embeddings and transcripts are made by the worker (mock providers by default, see `.env.example`).
+
 Check it: `curl localhost:3000/api/health` returns `{"ok":true,...}` once the worker has started.
 Port busy? `PORT=3100 pnpm dev`.
 
 ## Layout
 
-| Path            | What                                                                      |
-| --------------- | ------------------------------------------------------------------------- |
-| `apps/web`      | Next.js App Router (UI + short API routes)                                |
-| `apps/worker`   | Node worker running pg-boss jobs                                          |
-| `packages/db`   | Drizzle schema, migrations (with rollbacks), health check                 |
-| `packages/core` | Business logic and the zod-validated config                               |
-| `packages/llm`  | `LLMProvider`, `MockLLMProvider`, `LLMClient` (cache, `llm_runs` logging) |
+| Path            | What                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------- |
+| `apps/web`      | Next.js App Router (UI + short API routes)                                                                  |
+| `apps/worker`   | Node worker running pg-boss jobs                                                                            |
+| `packages/db`   | Drizzle schema, migrations (with rollbacks), health check                                                   |
+| `packages/core` | Business logic and the zod-validated config                                                                 |
+| `packages/llm`  | `LLMProvider`, `LLMClient` (cache, `llm_runs` logging), embedding and transcription clients, all with Mocks |
 
 ## Scripts
 
