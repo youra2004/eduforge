@@ -16,6 +16,7 @@ import {
   timestamp,
   unique,
   uuid,
+  vector,
 } from 'drizzle-orm/pg-core';
 
 export const llmPurposes = [
@@ -253,3 +254,69 @@ export const nodeSkills = pgTable(
 
 export type Course = typeof courses.$inferSelect;
 export type CourseVersion = typeof courseVersions.$inferSelect;
+
+// Node content and its search index (DATA_MODEL.md section 5, F2).
+export const contentKinds = ['markdown', 'video'] as const;
+export type ContentKind = (typeof contentKinds)[number];
+export const contentKind = pgEnum('content_kind', contentKinds);
+
+export const transcriptSources = ['author', 'whisper'] as const;
+export type TranscriptSource = (typeof transcriptSources)[number];
+export const transcriptSource = pgEnum('transcript_source', transcriptSources);
+
+/** The vector column size. Changing it needs a migration and a full re-embed (ADR-0006, OQ-2). */
+export const EMBEDDING_COLUMN_DIM = 1024;
+
+export const contentItems = pgTable(
+  'content_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => nodes.id),
+    kind: contentKind('kind').notNull(),
+    title: text('title').notNull(),
+    ord: integer('ord').notNull().default(0),
+    bodyMd: text('body_md'),
+    videoUrl: text('video_url'),
+    videoStorageKey: text('video_storage_key'),
+    transcriptText: text('transcript_text'),
+    transcriptSource: transcriptSource('transcript_source'),
+    // SHA-256 of the text that the current chunks were built from; null while not indexed.
+    indexedHash: text('indexed_hash'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('content_items_node_idx').on(t.nodeId, t.ord),
+    check(
+      'content_items_kind_fields',
+      sql`(${t.kind} = 'markdown' AND ${t.bodyMd} IS NOT NULL) OR (${t.kind} = 'video' AND (${t.videoUrl} IS NOT NULL OR ${t.videoStorageKey} IS NOT NULL))`,
+    ),
+  ],
+);
+
+// `nodeId` is repeated here on purpose: the tutor's search filters on it in SQL (D-15).
+export const contentChunks = pgTable(
+  'content_chunks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => nodes.id),
+    contentItemId: uuid('content_item_id')
+      .notNull()
+      .references(() => contentItems.id, { onDelete: 'cascade' }),
+    chunkIndex: integer('chunk_index').notNull(),
+    text: text('text').notNull(),
+    tokenCount: integer('token_count').notNull(),
+    embedding: vector('embedding', { dimensions: EMBEDDING_COLUMN_DIM }).notNull(),
+  },
+  (t) => [
+    unique('content_chunks_item_index_unique').on(t.contentItemId, t.chunkIndex),
+    index('content_chunks_node_idx').on(t.nodeId),
+    index('content_chunks_embedding_idx').using('hnsw', t.embedding.op('vector_cosine_ops')),
+  ],
+);
+
+export type ContentItem = typeof contentItems.$inferSelect;
+export type ContentChunk = typeof contentChunks.$inferSelect;

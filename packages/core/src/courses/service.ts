@@ -17,12 +17,14 @@ import { z } from 'zod';
 import { AuthError, hasRole, requireRole, type AuthUser } from '../auth/guard';
 import { CourseError } from './errors';
 import { validateGraph, type CourseIssue } from './graph';
+import { contentIssues } from '../content/validation';
+import { copyContent } from '../content/copy';
 import { declaredLevels, parseCourseImport } from './import';
 
 /** Anyone holding a role may browse; a signed-in user with every role removed may not. */
 const viewer = (user: AuthUser | null) => requireRole(user, ...allRoles);
 
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 /** Only these statuses may be edited. Everything from the audit onwards is frozen; a published version for good (D-06). */
 export const EDITABLE_STATUSES: VersionStatus[] = ['draft', 'changes_requested'];
@@ -108,14 +110,14 @@ export async function importCourse(db: Db, input: unknown, authorId: string) {
 }
 
 /** A version is visible if it is published, or the user owns the course, or is an admin or expert. */
-function canView(user: AuthUser, version: CourseVersion, authorId: string) {
+export function canView(user: AuthUser, version: CourseVersion, authorId: string) {
   return version.status === 'published' || authorId === user.id || hasRole(user, 'admin', 'expert');
 }
 
-const canEdit = (user: AuthUser, authorId: string) =>
+export const canEdit = (user: AuthUser, authorId: string) =>
   authorId === user.id || hasRole(user, 'admin');
 
-async function loadVersion(db: Db | Tx, user: AuthUser | null, versionId: string) {
+export async function loadVersion(db: Db | Tx, user: AuthUser | null, versionId: string) {
   const viewing = viewer(user);
   const [row] = z.uuid().safeParse(versionId).success
     ? await db
@@ -179,7 +181,10 @@ export async function getVersionGraph(db: Db, user: AuthUser | null, versionId: 
     skillIds: links.filter((l) => l.nodeId === n.id).map((l) => l.skillId),
   }));
   const edges = edgeRows.map((e) => ({ from: e.prereqNodeId, to: e.nodeId }));
-  const issues: CourseIssue[] = validateGraph({ nodes: graphNodes, edges });
+  const issues: CourseIssue[] = [
+    ...validateGraph({ nodes: graphNodes, edges }),
+    ...(await contentIssues(db, versionId)),
+  ];
   return {
     course: { id: course.id, slug: course.slug, authorId: course.authorId },
     version,
@@ -229,7 +234,7 @@ export async function updateVersion(
 /**
  * Starts the next version of a published one: copies skills, nodes, edges and node-skill links into a
  * new draft (not published, audit results not carried over) and links it with `parent_version_id` (D-06).
- * Content and questions will be copied here too once M03/M04 add their tables.
+ * Content items and their chunks are copied too; questions will be once M04 adds them.
  */
 export async function createNewVersion(db: Db, user: AuthUser | null, sourceVersionId: string) {
   const { version: source, course, user: actor } = await loadVersion(db, user, sourceVersionId);
@@ -304,6 +309,7 @@ export async function createNewVersion(db: Db, user: AuthUser | null, sourceVers
         })),
       ),
     );
+    await copyContent(tx, nodeIds);
     return { courseId: course.id, versionId, versionNo: next };
   });
 }

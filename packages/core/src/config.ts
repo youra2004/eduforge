@@ -1,3 +1,5 @@
+import { homedir } from 'node:os';
+import { isAbsolute, join } from 'node:path';
 import { z } from 'zod';
 
 // A blank value (`FOO=` in .env) counts as unset, so it falls back to the default instead of 0.
@@ -9,32 +11,54 @@ const fraction = (def: number) =>
 const count = (def: number) =>
   z.preprocess(blankToUndefined, z.coerce.number().int().positive().default(def));
 
-const envSchema = z.object({
-  DATABASE_URL: z.string().min(1),
-  TIME_SCALE: z.preprocess(blankToUndefined, z.coerce.number().positive().default(1)),
+const optional = z.preprocess(blankToUndefined, z.string().min(1).optional());
 
-  NODE_PASS_THRESHOLD: fraction(0.8),
-  BKT_P_INIT: fraction(0.2),
-  BKT_LEARN: fraction(0.15),
-  BKT_SLIP: fraction(0.1),
-  NODE_ATTEMPTS_PER_ROUND: count(2),
-  NODE_COOLDOWN_SECONDS: seconds(24 * 60 * 60),
+const envSchema = z
+  .object({
+    DATABASE_URL: z.string().min(1),
+    TIME_SCALE: z.preprocess(blankToUndefined, z.coerce.number().positive().default(1)),
 
-  EXAM_PASS_PCT: fraction(0.7),
-  EXAM_ATTEMPTS_PER_ROUND: count(2),
-  EXAM_COOLDOWN_SECONDS: seconds(7 * 24 * 60 * 60),
+    NODE_PASS_THRESHOLD: fraction(0.8),
+    BKT_P_INIT: fraction(0.2),
+    BKT_LEARN: fraction(0.15),
+    BKT_SLIP: fraction(0.1),
+    NODE_ATTEMPTS_PER_ROUND: count(2),
+    NODE_COOLDOWN_SECONDS: seconds(24 * 60 * 60),
 
-  SNAPSHOT_INTERVAL_SECONDS: seconds(60),
-  EVIDENCE_RETENTION_DAYS: seconds(30),
+    EXAM_PASS_PCT: fraction(0.7),
+    EXAM_ATTEMPTS_PER_ROUND: count(2),
+    EXAM_COOLDOWN_SECONDS: seconds(7 * 24 * 60 * 60),
 
-  SESSION_TTL_SECONDS: seconds(7 * 24 * 60 * 60),
-  LOGIN_MAX_ATTEMPTS: count(5),
-  LOGIN_WINDOW_SECONDS: seconds(15 * 60),
-  TRUSTED_PROXY_HOPS: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).default(0)),
+    SNAPSHOT_INTERVAL_SECONDS: seconds(60),
+    EVIDENCE_RETENTION_DAYS: seconds(30),
 
-  EMBEDDING_DIM: count(1024),
-  LLM_PROVIDER: z.enum(['mock']).default('mock'),
-});
+    SESSION_TTL_SECONDS: seconds(7 * 24 * 60 * 60),
+    LOGIN_MAX_ATTEMPTS: count(5),
+    LOGIN_WINDOW_SECONDS: seconds(15 * 60),
+    TRUSTED_PROXY_HOPS: z.preprocess(blankToUndefined, z.coerce.number().int().min(0).default(0)),
+
+    EMBEDDING_DIM: count(1024),
+    LLM_PROVIDER: z.enum(['mock']).default('mock'),
+    EMBEDDING_PROVIDER: z.enum(['mock', 'openai']).default('mock'),
+    EMBEDDING_MODEL: z.preprocess(blankToUndefined, z.string().default('text-embedding-3-large')),
+    TRANSCRIPTION_PROVIDER: z.enum(['mock', 'openai']).default('mock'),
+    WHISPER_MODEL: z.preprocess(blankToUndefined, z.string().default('whisper-1')),
+    OPENAI_API_KEY: optional,
+    // Where uploaded videos live. The web app and the worker must see the same directory.
+    STORAGE_DIR: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .refine(isAbsolute, 'must be an absolute path')
+        .default(join(homedir(), '.eduforge', 'storage')),
+    ),
+  })
+  .refine(
+    (e) =>
+      !(e.EMBEDDING_PROVIDER === 'openai' || e.TRANSCRIPTION_PROVIDER === 'openai') ||
+      e.OPENAI_API_KEY,
+    { path: ['OPENAI_API_KEY'], message: 'required when a provider is set to openai' },
+  );
 
 export type Config = ReturnType<typeof toConfig>;
 
@@ -65,6 +89,10 @@ function toConfig(env: z.infer<typeof envSchema>) {
     },
     embeddingDim: env.EMBEDDING_DIM,
     llmProvider: env.LLM_PROVIDER,
+    embedding: { provider: env.EMBEDDING_PROVIDER, model: env.EMBEDDING_MODEL },
+    transcription: { provider: env.TRANSCRIPTION_PROVIDER, model: env.WHISPER_MODEL },
+    openaiApiKey: env.OPENAI_API_KEY,
+    storageDir: env.STORAGE_DIR,
   };
 }
 

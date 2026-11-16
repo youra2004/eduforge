@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { defineConfig } from '@playwright/test';
 
 const port = Number(process.env.E2E_PORT ?? 3100);
@@ -7,7 +10,8 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${port}` },
   webServer: {
     command: 'pnpm --filter @eduforge/web dev',
-    env: { PORT: String(port) },
+    // Uploaded videos of the e2e run go to a throwaway directory, not to ~/.eduforge.
+    env: { PORT: String(port), STORAGE_DIR: mkdtempSync(join(tmpdir(), 'eduforge-e2e-')) },
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

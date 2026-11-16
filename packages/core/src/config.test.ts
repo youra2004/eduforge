@@ -36,4 +36,20 @@ describe('loadConfig', () => {
       /EXAM_COOLDOWN_SECONDS/,
     );
   });
+
+  it('defaults providers to the mock and needs a key only for openai', () => {
+    const c = loadConfig(base);
+    expect(c.embedding).toEqual({ provider: 'mock', model: 'text-embedding-3-large' });
+    expect(c.transcription.provider).toBe('mock');
+    expect(c.storageDir).toMatch(/\.eduforge[\\/]storage$/);
+    expect(() => loadConfig({ ...base, EMBEDDING_PROVIDER: 'openai' })).toThrow(/OPENAI_API_KEY/);
+    expect(
+      loadConfig({ ...base, EMBEDDING_PROVIDER: 'openai', OPENAI_API_KEY: 'k' }).embedding.provider,
+    ).toBe('openai');
+  });
+
+  it('requires an absolute STORAGE_DIR', () => {
+    expect(() => loadConfig({ ...base, STORAGE_DIR: 'relative/dir' })).toThrow(/STORAGE_DIR/);
+    expect(loadConfig({ ...base, STORAGE_DIR: '/var/eduforge' }).storageDir).toBe('/var/eduforge');
+  });
 });
