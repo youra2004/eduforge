@@ -3,3 +3,5 @@ export * from './cache';
 export * from './store';
 export * from './mock';
 export * from './client';
+export * from './embedding';
+export * from './transcription';
