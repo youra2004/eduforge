@@ -136,3 +136,37 @@ td label {
   margin-right: 12px;
   color: var(--text);
 }
+.card.wide {
+  max-width: none;
+}
+.graph-canvas {
+  height: 760px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+.graph-node {
+  display: grid;
+  gap: 4px;
+  width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 0.85rem;
+}
+.graph-node.available {
+  border-color: var(--accent);
+}
+.graph-node.locked {
+  background: #eef0f3;
+  color: var(--muted);
+}
+.graph-node-skills {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.graph-node-state {
+  font-size: 0.75rem;
+  font-weight: 600;
+}

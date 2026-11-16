@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requirePageRole } from '@/lib/pages';
 
 export default async function Page() {
@@ -7,6 +8,9 @@ export default async function Page() {
       <h1>Автор</h1>
       <p className="muted">
         Тут автор створюватиме курси, графи знань і питання. (розділ у розробці)
+      </p>
+      <p>
+        <Link href="/courses">Мої курси та графи знань</Link>
       </p>
     </div>
   );
