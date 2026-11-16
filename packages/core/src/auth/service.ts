@@ -115,8 +115,10 @@ export async function login(db: Db, settings: AuthSettings, input: unknown, ip?:
     for (const key of [...keys].sort()) {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${key}))`);
     }
-    // Old rows are only useful inside the window.
-    await tx.delete(loginAttempts).where(lt(loginAttempts.createdAt, since));
+    // Old rows are only useful inside the window; clean only our own keys (they are locked).
+    await tx
+      .delete(loginAttempts)
+      .where(and(inArray(loginAttempts.key, keys), lt(loginAttempts.createdAt, since)));
     for (const key of keys) {
       const [row] = await tx
         .select({ n: count() })
