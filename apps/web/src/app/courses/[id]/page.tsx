@@ -1,6 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CourseError, getVersionGraph, nodeLayers, placeholderNodeStates } from '@eduforge/core';
+import {
+  CourseError,
+  getVersionGraph,
+  hasRole,
+  loadConfig,
+  nodeLayers,
+  placeholderNodeStates,
+  poolIssues,
+} from '@eduforge/core';
 import { CourseGraph, type GraphNodeData } from '@/components/CourseGraph';
 import { versionStatusLabels } from '@/lib/messages';
 import { requirePageRole } from '@/lib/pages';
@@ -19,6 +27,12 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
     if (err instanceof CourseError) notFound();
     throw err;
   });
+
+  // Question pool shortages (F3-R6) are for those who can fill the pools, not for students.
+  const pools =
+    graph.course.authorId === user.id || hasRole(user, 'admin', 'expert')
+      ? await poolIssues(getDb(), id, loadConfig().questions)
+      : [];
 
   const layers = nodeLayers(graph);
   const states = placeholderNodeStates({ nodes: graph.nodes, edges: graph.edges });
@@ -65,6 +79,18 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
             <li key={k}>{i.message}</li>
           ))}
         </ul>
+      )}
+      {pools.length > 0 && (
+        <details data-testid="pool-issues">
+          <summary className="error">
+            Недостатньо перевірених питань: {pools.length} (потрібно для публікації)
+          </summary>
+          <ul className="error">
+            {pools.map((i, k) => (
+              <li key={k}>{i.message}</li>
+            ))}
+          </ul>
+        </details>
       )}
       <CourseGraph
         nodes={flowNodes}

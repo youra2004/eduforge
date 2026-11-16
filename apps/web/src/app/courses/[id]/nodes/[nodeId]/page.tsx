@@ -1,8 +1,16 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CourseError, getVersionGraph, listNodeContent } from '@eduforge/core';
+import {
+  AuthError,
+  CourseError,
+  getVersionGraph,
+  listNodeContent,
+  listNodeQuestions,
+  loadConfig,
+} from '@eduforge/core';
 import { ContentEditor } from '@/components/ContentEditor';
 import { Markdown } from '@/components/Markdown';
+import { QuestionBank, type BankQuestion } from '@/components/QuestionBank';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
@@ -27,6 +35,11 @@ export default async function NodePage({
   const node = graph.nodes.find((n) => n.id === nodeId);
   if (!node) notFound();
   const { items, canEdit } = await listNodeContent(db, user, nodeId).catch(orNotFound);
+  // Questions carry answer keys, so only the course's author, admins and experts get them.
+  const bank = await listNodeQuestions(db, user, nodeId).catch((err) => {
+    if (err instanceof AuthError) return null;
+    return orNotFound(err);
+  });
   const problems = graph.issues.filter(
     (i) => i.nodeIds?.includes(nodeId) && i.code === 'video_without_transcript',
   );
@@ -73,6 +86,15 @@ export default async function NodePage({
         </article>
       ))}
       {canEdit && <ContentEditor nodeId={nodeId} items={items} />}
+      {bank && (
+        <QuestionBank
+          nodeId={nodeId}
+          skills={bank.skills}
+          questions={bank.questions as unknown as BankQuestion[]}
+          canEdit={bank.canEdit}
+          need={loadConfig().questions.nodeMinPerSkill}
+        />
+      )}
     </div>
   );
 }

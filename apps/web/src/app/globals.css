@@ -265,3 +265,31 @@ select {
   gap: 16px;
   align-items: center;
 }
+.questions {
+  list-style: none;
+  padding: 0;
+}
+.question {
+  padding: 8px 12px;
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.badge {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+.badge.validated {
+  color: #0a7a3d;
+  border-color: #0a7a3d;
+}
+.badge.rejected {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.question .actions {
+  display: flex;
+  gap: 16px;
+}
