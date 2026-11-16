@@ -15,6 +15,13 @@
       "when": 1794826528767,
       "tag": "0001_llm_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794832291244,
+      "tag": "0002_auth_roles",
+      "breakpoints": true
     }
   ]
 }
