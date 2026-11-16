@@ -191,6 +191,79 @@ describe('generator (F3-R3)', () => {
   });
 });
 
+describe('frozen versions during a slow call (D-06)', () => {
+  it('a generation that finishes after the version was published writes nothing', async () => {
+    const { a, versionId } = await setup();
+    const publishMidCall: LLMProvider = {
+      model: 'slow',
+      async complete() {
+        await db
+          .update(courseVersions)
+          .set({ status: 'published' })
+          .where(eq(courseVersions.id, versionId));
+        return {
+          output: {
+            questions: [{ kind: 'short', skillId: a.skillIds[0], promptMd: 'Q', accepted: ['x'] }],
+          },
+          tokensIn: 1,
+          tokensOut: 1,
+          costUsd: 0,
+        };
+      },
+    };
+    const input = { nodeId: a.id, pool: 'node', perSkill: 1 } as const;
+    expect(await code(generateQuestions(db, llmWith(publishMidCall), cfg, input))).toBe(
+      'version_locked',
+    );
+    expect(await db.select().from(questions).where(eq(questions.nodeId, a.id))).toHaveLength(0);
+  });
+
+  it('a retired question cannot be edited back to life, and a copy leaves pending questions behind', async () => {
+    const { author, versionId, a } = await setup();
+    const llm = llmWith();
+    const ok = await createQuestion(
+      db,
+      author,
+      a.id,
+      mcqBody(a.skillIds[0]!, ['Функція print виводить текст на екран.', 'Неправда.'], 0),
+      cfg,
+    );
+    await validateQuestion(db, llm, ok.id);
+    const pending = await createQuestion(
+      db,
+      author,
+      a.id,
+      mcqBody(a.skillIds[0]!, ['а', 'б'], 0, 'Ще одне?'),
+      cfg,
+    );
+    const old = await createQuestion(
+      db,
+      author,
+      a.id,
+      mcqBody(a.skillIds[0]!, ['в', 'г'], 0, 'Старе?'),
+      cfg,
+    );
+    await db.update(questions).set({ status: 'retired' }).where(eq(questions.id, old.id));
+    expect(
+      await code(updateQuestion(db, author, old.id, mcqBody(a.skillIds[0]!, ['в', 'г'], 1))),
+    ).toBe('invalid_question');
+
+    await db
+      .update(courseVersions)
+      .set({ status: 'published' })
+      .where(eq(courseVersions.id, versionId));
+    const next = await createNewVersion(db, author, versionId);
+    const graph = await getVersionGraph(db, author, next.versionId);
+    const copied = await listNodeQuestions(
+      db,
+      author,
+      graph.nodes.find((x) => x.title === a.title)!.id,
+    );
+    expect(copied.questions.map((q) => q.status).sort()).toEqual(['retired', 'validated']);
+    expect(copied.questions.some((q) => q.promptMd === pending.promptMd)).toBe(false);
+  });
+});
+
 describe('validator (F3-R3)', () => {
   it('validates good questions and logs both runs on them', async () => {
     const { author, a } = await setup();
@@ -493,13 +566,15 @@ describe('access and immutability', () => {
     const graph = await getVersionGraph(db, author, next.versionId);
     const copyNode = graph.nodes.find((x) => x.title === a.title)!;
     const copied = await listNodeQuestions(db, author, copyNode.id);
-    expect(copied.questions).toHaveLength(before.questions.length);
+    // `first` was put back to `generated` above, and pending questions are not copied
+    const kept = before.questions.filter((q) => q.id !== first.id);
+    expect(copied.questions).toHaveLength(kept.length);
     expect(copied.questions.every((q) => !before.questions.some((o) => o.id === q.id))).toBe(true);
     expect(
       copied.questions.every((q) => q.pool === 'exam' && copyNode.skillIds.includes(q.skillId)),
     ).toBe(true);
     expect(copied.questions.map((q) => q.promptMd).sort()).toEqual(
-      before.questions.map((q) => q.promptMd).sort(),
+      kept.map((q) => q.promptMd).sort(),
     );
     expect(copied.canEdit).toBe(true);
   });

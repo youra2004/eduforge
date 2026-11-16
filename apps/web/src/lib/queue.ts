@@ -62,9 +62,10 @@ export async function queueContentWork(
 /** Asks the worker to generate questions for a node. Unlike content work this is an explicit request, so a down queue is an error. */
 export async function queueGenerateQuestions(job: GenerateQuestionsJob) {
   const boss = await getBoss();
-  await boss.send(GENERATE_QUESTIONS_QUEUE, job, {
+  const id = await boss.send(GENERATE_QUESTIONS_QUEUE, job, {
     singletonKey: `${job.nodeId}:${job.pool}`,
   });
+  return { alreadyQueued: id === null }; // a request for the same node and pool is still waiting
 }
 
 /** Asks the worker to validate one question; if the queue is down the worker re-queues pending ones when it starts. */

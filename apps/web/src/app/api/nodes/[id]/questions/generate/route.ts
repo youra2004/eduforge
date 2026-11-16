@@ -16,6 +16,6 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
     await readCourseJson(req),
     loadConfig().questions,
   );
-  await queueGenerateQuestions(job);
-  return Response.json({ queued: job }, { status: 202 });
+  const { alreadyQueued } = await queueGenerateQuestions(job);
+  return Response.json({ queued: job, alreadyQueued }, { status: 202 });
 });

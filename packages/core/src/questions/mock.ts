@@ -7,7 +7,7 @@ function section(prompt: string, marker: string): string {
   const start = prompt.indexOf(`${marker}\n`);
   if (start < 0) return '';
   const rest = prompt.slice(start + marker.length + 1);
-  const end = marker === SECTION.theory ? -1 : rest.search(/\n\n## /);
+  const end = marker === SECTION.theory || marker === SECTION.answer ? -1 : rest.search(/\n\n## /);
   return (end < 0 ? rest : rest.slice(0, end)).trim();
 }
 
@@ -115,7 +115,7 @@ const words = (s: string) =>
     .filter((w) => w.length > 3);
 
 function mockGrade(req: LLMRequest) {
-  const answer = /<student_answer>([\s\S]*)<\/student_answer>/.exec(req.prompt)?.[1] ?? '';
+  const answer = JSON.parse(section(req.prompt, SECTION.answer) || '""') as string;
   if (req.promptVersion === OPEN_GRADER_VERSION) {
     const reference = section(req.prompt, SECTION.reference);
     const want = [...new Set(words(reference))];

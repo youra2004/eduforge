@@ -60,20 +60,31 @@ export async function generateQuestions(
     if (!known.has(body.skillId) || !cols.ok) return [];
     return [{ ...cols.value, skillId: body.skillId }];
   });
-  const inserted = rows.length
-    ? await db
-        .insert(questions)
-        .values(
-          rows.map((r) => ({
-            ...r,
-            nodeId: input.nodeId,
-            pool: input.pool,
-            slip: cfg.slip,
-            generatorRunId: run.runId,
-          })),
-        )
-        .returning({ id: questions.id })
-    : [];
+  // The LLM call took a while: look at the version again, under a share lock, before writing into it (D-06).
+  const inserted = await db.transaction(async (tx) => {
+    const [version] = await tx
+      .select({ status: courseVersions.status })
+      .from(nodes)
+      .innerJoin(courseVersions, eq(courseVersions.id, nodes.courseVersionId))
+      .where(eq(nodes.id, input.nodeId))
+      .for('share');
+    if (!version || !EDITABLE_STATUSES.includes(version.status)) {
+      throw new CourseError('version_locked');
+    }
+    if (rows.length === 0) return [];
+    return tx
+      .insert(questions)
+      .values(
+        rows.map((r) => ({
+          ...r,
+          nodeId: input.nodeId,
+          pool: input.pool,
+          slip: cfg.slip,
+          generatorRunId: run.runId,
+        })),
+      )
+      .returning({ id: questions.id });
+  });
   return {
     runId: run.runId,
     questionIds: inserted.map((q) => q.id),

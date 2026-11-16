@@ -166,6 +166,7 @@ export async function updateQuestion(
   return editVersionOf(db, version.id, async (tx) => {
     const [q] = await tx.select().from(questions).where(eq(questions.id, questionId)).for('update');
     if (!q) throw new CourseError('question_not_found');
+    if (q.status === 'retired') throw invalid('A retired question cannot be edited.');
     await assertSkillOfNode(tx, q.nodeId, body.skillId);
     const [row] = await tx
       .update(questions)

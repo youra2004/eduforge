@@ -30,15 +30,17 @@ export interface GradingDeps {
   openPassThreshold: number;
 }
 
-/** Compares answers regardless of case, spacing, punctuation and apostrophe style. */
+/**
+ * Compares answers regardless of case, spacing, apostrophe style and sentence punctuation at the ends.
+ * Symbols inside an answer stay (`-5`, `C++`, `50%` differ from `5`, `C`, `50`); what does not match goes to the LLM.
+ */
 export function normalizeAnswer(s: string): string {
   return s
     .normalize('NFKC')
     .toLowerCase()
     .replace(/['’ʼ`´]/g, '')
-    .replace(/[\p{P}\p{S}]+/gu, ' ')
     .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/^[\s.,;:!?"«»“”„]+|[\s.,;:!?"«»“”„]+$/g, '');
 }
 
 export function gradeMcq(q: Pick<GradableQuestion, 'answerKey'>, optionIndex: number): Grade {
