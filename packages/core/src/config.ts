@@ -1,26 +1,33 @@
 import { z } from 'zod';
 
-const num = (def: number) => z.coerce.number().default(def);
+// A blank value (`FOO=` in .env) counts as unset, so it falls back to the default instead of 0.
+const blankToUndefined = (v: unknown) => (v === '' ? undefined : v);
+const seconds = (def: number) =>
+  z.preprocess(blankToUndefined, z.coerce.number().positive().default(def));
+const fraction = (def: number) =>
+  z.preprocess(blankToUndefined, z.coerce.number().min(0).max(1).default(def));
+const count = (def: number) =>
+  z.preprocess(blankToUndefined, z.coerce.number().int().positive().default(def));
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
-  TIME_SCALE: z.coerce.number().positive().default(1),
+  TIME_SCALE: z.preprocess(blankToUndefined, z.coerce.number().positive().default(1)),
 
-  NODE_PASS_THRESHOLD: num(0.8),
-  BKT_P_INIT: num(0.2),
-  BKT_LEARN: num(0.15),
-  BKT_SLIP: num(0.1),
-  NODE_ATTEMPTS_PER_ROUND: z.coerce.number().int().positive().default(2),
-  NODE_COOLDOWN_SECONDS: num(24 * 60 * 60),
+  NODE_PASS_THRESHOLD: fraction(0.8),
+  BKT_P_INIT: fraction(0.2),
+  BKT_LEARN: fraction(0.15),
+  BKT_SLIP: fraction(0.1),
+  NODE_ATTEMPTS_PER_ROUND: count(2),
+  NODE_COOLDOWN_SECONDS: seconds(24 * 60 * 60),
 
-  EXAM_PASS_PCT: num(0.7),
-  EXAM_ATTEMPTS_PER_ROUND: z.coerce.number().int().positive().default(2),
-  EXAM_COOLDOWN_SECONDS: num(7 * 24 * 60 * 60),
+  EXAM_PASS_PCT: fraction(0.7),
+  EXAM_ATTEMPTS_PER_ROUND: count(2),
+  EXAM_COOLDOWN_SECONDS: seconds(7 * 24 * 60 * 60),
 
-  SNAPSHOT_INTERVAL_SECONDS: num(60),
-  EVIDENCE_RETENTION_DAYS: num(30),
+  SNAPSHOT_INTERVAL_SECONDS: seconds(60),
+  EVIDENCE_RETENTION_DAYS: seconds(30),
 
-  EMBEDDING_DIM: z.coerce.number().int().positive().default(1024),
+  EMBEDDING_DIM: count(1024),
   LLM_PROVIDER: z.enum(['mock']).default('mock'),
 });
 

@@ -55,7 +55,19 @@ export class LLMClient {
     }
 
     const started = performance.now();
-    const result = await this.provider.complete(req);
+    let result;
+    try {
+      result = await this.provider.complete(req);
+    } catch (err) {
+      // Failed calls are still calls: log them, then let the caller see the error.
+      await this.store.insert({
+        ...base,
+        latencyMs: Math.round(performance.now() - started),
+        params: { ...params, cached: false, providerError: String(err) },
+        response: null,
+      });
+      throw err;
+    }
     const latencyMs = Math.round(performance.now() - started);
     const usage = {
       tokensIn: result.tokensIn,

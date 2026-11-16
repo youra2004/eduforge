@@ -69,4 +69,15 @@ describe('LLMClient', () => {
     await expect(client.generate(req)).rejects.toThrow();
     expect(provider.calls).toHaveLength(2);
   });
+
+  it('logs a run when the provider throws, then rethrows', async () => {
+    const store = new MemoryStore();
+    const client = new LLMClient(new MockLLMProvider({}), store);
+    await expect(client.generate(req)).rejects.toThrow(/no responder/);
+    expect(store.rows).toHaveLength(1);
+    expect(store.rows[0]?.response).toBeNull();
+    expect(store.rows[0]?.params).toMatchObject({
+      providerError: expect.stringContaining('no responder'),
+    });
+  });
 });

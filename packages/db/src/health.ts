@@ -11,14 +11,14 @@ export async function checkHealth(databaseUrl: string): Promise<Health> {
   const client = new pg.Client({ connectionString: databaseUrl, connectionTimeoutMillis: 3000 });
   const health: Health = { ok: false, db: { ok: false }, queue: { ok: false } };
   try {
-    await client.connect();
-    await client.query('SELECT 1');
-    health.db.ok = true;
-  } catch (err) {
-    health.db.error = err instanceof Error ? err.message : String(err);
-    return health;
-  }
-  try {
+    try {
+      await client.connect();
+      await client.query('SELECT 1');
+      health.db.ok = true;
+    } catch (err) {
+      health.db.error = err instanceof Error ? err.message : String(err);
+      return health;
+    }
     const res = await client.query<{ installed: string | null }>(
       "SELECT to_regclass('pgboss.job') AS installed",
     );

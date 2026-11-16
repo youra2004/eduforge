@@ -26,4 +26,14 @@ describe('loadConfig', () => {
     expect(() => loadConfig({ ...base, TIME_SCALE: '0' })).toThrow(/TIME_SCALE/);
     expect(() => loadConfig({ ...base, TIME_SCALE: 'abc' })).toThrow(/TIME_SCALE/);
   });
+
+  it('treats blank values as unset and rejects out-of-range ones', () => {
+    const c = loadConfig({ ...base, TIME_SCALE: '', NODE_COOLDOWN_SECONDS: '' });
+    expect(c.timeScale).toBe(1);
+    expect(c.node.cooldownSeconds).toBe(86400);
+    expect(() => loadConfig({ ...base, NODE_PASS_THRESHOLD: '5' })).toThrow(/NODE_PASS_THRESHOLD/);
+    expect(() => loadConfig({ ...base, EXAM_COOLDOWN_SECONDS: '-10' })).toThrow(
+      /EXAM_COOLDOWN_SECONDS/,
+    );
+  });
 });
