@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc -p .",
-    "create-admin": "tsx --env-file-if-exists=../../.env scripts/create-admin.ts"
+    "create-admin": "tsx --env-file-if-exists=../../.env scripts/create-admin.ts",
+    "import-course": "tsx --env-file-if-exists=../../.env scripts/import-course.ts"
   },
   "dependencies": {
     "@eduforge/db": "workspace:*",

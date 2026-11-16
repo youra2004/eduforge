@@ -22,6 +22,12 @@ Create the first admin (roles are assigned from the admin page afterwards):
 ADMIN_PASSWORD='choose-a-password' pnpm create-admin you@example.com "Your Name"
 ```
 
+Import a course (the seed is a small Ukrainian demo course; the author must already exist):
+
+```bash
+pnpm import-course packages/core/seed/demo-course.json author@example.com
+```
+
 Check it: `curl localhost:3000/api/health` returns `{"ok":true,...}` once the worker has started.
 Port busy? `PORT=3100 pnpm dev`.
 

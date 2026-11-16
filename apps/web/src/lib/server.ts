@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { AuthError, getSessionUser, loadConfig, type AuthUser } from '@eduforge/core';
+import { AuthError, CourseError, getSessionUser, loadConfig, type AuthUser } from '@eduforge/core';
 import { createDb, type Db } from '@eduforge/db';
 import { errorMessages } from './messages';
 
@@ -63,7 +63,19 @@ export async function readJson(req: Request): Promise<unknown> {
   }
 }
 
-/** Wraps a route handler so AuthErrors become JSON with the right status and a Ukrainian message. */
+/** `readJson` for course endpoints: a bad body is reported as a course problem, not as a login one. */
+export async function readCourseJson(req: Request): Promise<unknown> {
+  try {
+    return await readJson(req);
+  } catch (err) {
+    if (!(err instanceof AuthError)) throw err;
+    throw new CourseError('invalid_course', [
+      { code: 'schema', message: 'The body must be valid JSON sent as application/json.' },
+    ]);
+  }
+}
+
+/** Wraps a route handler so AuthErrors and CourseErrors become JSON with the right status and a Ukrainian message. */
 export function route<A extends unknown[]>(handler: (...args: A) => Promise<Response>) {
   return async (...args: A): Promise<Response> => {
     try {
@@ -72,6 +84,12 @@ export function route<A extends unknown[]>(handler: (...args: A) => Promise<Resp
       if (err instanceof AuthError) {
         return Response.json(
           { error: err.code, message: errorMessages[err.code] },
+          { status: err.status },
+        );
+      }
+      if (err instanceof CourseError) {
+        return Response.json(
+          { error: err.code, message: errorMessages[err.code], issues: err.issues },
           { status: err.status },
         );
       }

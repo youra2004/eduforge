@@ -18,6 +18,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             <Link href="/" className="brand">
               EduForge
             </Link>
+            {user && <Link href="/courses">Курси</Link>}
             {user &&
               roles
                 .filter((r) => user.roles.includes(r))
