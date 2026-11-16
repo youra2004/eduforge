@@ -1,0 +1,39 @@
+# EduForge
+
+Graph-based learning platform (mastery gating, AI tutor, exam, certificate). See `docs/SPEC.md` for the spec and `docs/milestones/` for the build plan.
+
+## Requirements
+
+Node 22+, pnpm 12 (`corepack enable`), Docker.
+
+## Run locally
+
+```bash
+cp .env.example .env
+pnpm install
+docker compose up -d --wait   # Postgres + pgvector on localhost:5433
+pnpm db:migrate               # apply migrations (pnpm db:rollback undoes the last one)
+pnpm dev                      # web on :3000, worker alongside
+```
+
+Check it: `curl localhost:3000/api/health` returns `{"ok":true,...}` once the worker has started.
+Port busy? `PORT=3100 pnpm dev`.
+
+## Layout
+
+| Path            | What                                                                      |
+| --------------- | ------------------------------------------------------------------------- |
+| `apps/web`      | Next.js App Router (UI + short API routes)                                |
+| `apps/worker`   | Node worker running pg-boss jobs                                          |
+| `packages/db`   | Drizzle schema, migrations (with rollbacks), health check                 |
+| `packages/core` | Business logic and the zod-validated config                               |
+| `packages/llm`  | `LLMProvider`, `MockLLMProvider`, `LLMClient` (cache, `llm_runs` logging) |
+
+## Scripts
+
+`pnpm lint` · `pnpm typecheck` · `pnpm test` (needs Postgres up) · `pnpm test:e2e` (needs `pnpm exec playwright install chromium` once) · `pnpm build`
+
+## Configuration
+
+All settings are env vars, validated in `packages/core/src/config.ts`; `.env.example` lists them with SPEC defaults.
+`TIME_SCALE` divides pauses and intervals for demos (`TIME_SCALE=1440` turns the 24 h node pause into 60 s).

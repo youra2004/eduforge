@@ -1,0 +1,19 @@
+{
+  "name": "@eduforge/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "tsx --env-file-if-exists=../../.env src/main.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@eduforge/core": "workspace:*",
+    "@eduforge/db": "workspace:*",
+    "pg-boss": "^12.38.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}
