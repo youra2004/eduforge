@@ -11,7 +11,9 @@ export type CourseIssueCode =
   | 'no_root'
   | 'unreachable'
   | 'isolated'
-  | 'node_without_skill';
+  | 'node_without_skill'
+  // content validation (F2-R3)
+  | 'video_without_transcript';
 
 export interface CourseIssue {
   code: CourseIssueCode;
