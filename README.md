@@ -16,6 +16,12 @@ pnpm db:migrate               # apply migrations (pnpm db:rollback undoes the la
 pnpm dev                      # web on :3000, worker alongside
 ```
 
+Create the first admin (roles are assigned from the admin page afterwards):
+
+```bash
+ADMIN_PASSWORD='choose-a-password' pnpm create-admin you@example.com "Your Name"
+```
+
 Check it: `curl localhost:3000/api/health` returns `{"ok":true,...}` once the worker has started.
 Port busy? `PORT=3100 pnpm dev`.
 
