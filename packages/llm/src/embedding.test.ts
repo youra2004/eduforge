@@ -179,4 +179,14 @@ describe('transcription', () => {
     await expect(provider.transcribe(file)).rejects.toThrow(/25 MB/);
     expect(called).toBe(false);
   });
+
+  it('logs an empty transcript as a failure', async () => {
+    const store = new MemoryStore();
+    const client = new TranscriptionClient(
+      { model: 'quiet', transcribe: async () => ({ text: '  ', costUsd: 0 }) },
+      store,
+    );
+    await expect(client.transcribe('/x/silent.mp4')).rejects.toThrow('empty');
+    expect(store.runs[0]).toMatchObject({ response: null });
+  });
 });

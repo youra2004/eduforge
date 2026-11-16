@@ -80,6 +80,8 @@ export class TranscriptionClient {
     let result: TranscriptionResult;
     try {
       result = await this.provider.transcribe(filePath);
+      // Silence is a failed transcription too: it is logged as one, so retries stay bounded.
+      if (result.text.trim() === '') throw new Error('Transcription came back empty');
     } catch (err) {
       await this.store.insert({
         ...base,
