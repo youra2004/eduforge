@@ -1,0 +1,5 @@
+# ADR-0007: Question bank
+
+- A question has one pool for life (`pool` cannot be edited), so pools cannot overlap (D-17); `assertQuestionsInPool` is the guard the node test (M05) and exam (M09) must call, and it throws `wrong_pool`. Minimum pools (F3-R6) are `poolIssues`, kept apart from `getVersionGraph` issues and called by the course page and, later, by publication (M08).
+- The generator prompt is built by one function from the node's theory and skill list only; the validator is a separate call that also sees the key. Both use `cache: false`, and every question stores `generator_run_id` and `validator_run_id`. `revision` makes a validation that started before an edit a no-op. Pending validations are re-queued when the worker starts, not on a timer, so a permanently failing LLM cannot loop.
+- The author may approve or reject over the validator's verdict (the milestone asks for approve/reject); `reject` keeps a reason. Students and the tutor get questions only through `toStudentQuestion`, an allow-list. Config: `POOL_NODE_MIN_PER_SKILL`, `POOL_EXAM_MIN_PER_SKILL`, `OPEN_PASS_THRESHOLD`.

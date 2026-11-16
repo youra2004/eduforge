@@ -13,7 +13,9 @@ export type CourseIssueCode =
   | 'isolated'
   | 'node_without_skill'
   // content validation (F2-R3)
-  | 'video_without_transcript';
+  | 'video_without_transcript'
+  // question pool validation (F3-R6)
+  | 'pool_too_small';
 
 export interface CourseIssue {
   code: CourseIssueCode;
@@ -22,6 +24,11 @@ export interface CourseIssue {
   path?: string;
   /** The nodes involved (ids, or keys for an import). */
   nodeIds?: string[];
+  /** For `pool_too_small`: where the shortage is and how big it is. */
+  skillId?: string;
+  pool?: 'node' | 'exam';
+  have?: number;
+  need?: number;
 }
 
 export interface GraphInput {
