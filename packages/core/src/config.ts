@@ -25,6 +25,10 @@ const envSchema = z
     NODE_ATTEMPTS_PER_ROUND: count(2),
     NODE_COOLDOWN_SECONDS: seconds(24 * 60 * 60),
 
+    POOL_NODE_MIN_PER_SKILL: count(4),
+    POOL_EXAM_MIN_PER_SKILL: count(3),
+    OPEN_PASS_THRESHOLD: fraction(0.7),
+
     EXAM_PASS_PCT: fraction(0.7),
     EXAM_ATTEMPTS_PER_ROUND: count(2),
     EXAM_COOLDOWN_SECONDS: seconds(7 * 24 * 60 * 60),
@@ -70,6 +74,11 @@ function toConfig(env: z.infer<typeof envSchema>) {
       passThreshold: env.NODE_PASS_THRESHOLD,
       attemptsPerRound: env.NODE_ATTEMPTS_PER_ROUND,
       cooldownSeconds: env.NODE_COOLDOWN_SECONDS,
+    },
+    questions: {
+      nodeMinPerSkill: env.POOL_NODE_MIN_PER_SKILL,
+      examMinPerSkill: env.POOL_EXAM_MIN_PER_SKILL,
+      openPassThreshold: env.OPEN_PASS_THRESHOLD,
     },
     bkt: { pInit: env.BKT_P_INIT, learn: env.BKT_LEARN, slip: env.BKT_SLIP },
     exam: {

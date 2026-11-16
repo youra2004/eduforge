@@ -15,6 +15,7 @@ const hasLlmRuns = () => exists("to_regclass('public.llm_runs') IS NOT NULL");
 const hasUsers = () => exists("to_regclass('public.users') IS NOT NULL");
 const hasCourses = () => exists("to_regclass('public.course_versions') IS NOT NULL");
 const hasContent = () => exists("to_regclass('public.content_chunks') IS NOT NULL");
+const hasQuestions = () => exists("to_regclass('public.questions') IS NOT NULL");
 
 describe('migrations', () => {
   it('apply to an empty DB: vector extension, llm_runs and users exist', async () => {
@@ -23,17 +24,20 @@ describe('migrations', () => {
     expect(await hasUsers()).toBe(true);
     expect(await hasCourses()).toBe(true);
     expect(await hasContent()).toBe(true);
+    expect(await hasQuestions()).toBe(true);
   });
 
   it('roll back, and apply again', async () => {
-    const rolledBack = await migrateDown(url, 5);
+    const rolledBack = await migrateDown(url, 6);
     expect(rolledBack).toEqual([
+      '0005_question_bank',
       '0004_content_embeddings',
       '0003_courses_graph',
       '0002_auth_roles',
       '0001_llm_runs',
       '0000_enable_vector',
     ]);
+    expect(await hasQuestions()).toBe(false);
     expect(await hasContent()).toBe(false);
     expect(await hasCourses()).toBe(false);
     expect(await hasUsers()).toBe(false);
@@ -41,6 +45,7 @@ describe('migrations', () => {
     expect(await hasVector()).toBe(false);
 
     await migrateUp(url);
+    expect(await hasQuestions()).toBe(true);
     expect(await hasContent()).toBe(true);
     expect(await hasVector()).toBe(true);
     expect(await hasLlmRuns()).toBe(true);
