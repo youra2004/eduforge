@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { openAsBlob } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import { basename } from 'node:path';
 import type { LLMRunStore } from './store';
 
@@ -25,6 +26,8 @@ export class MockTranscriptionProvider implements TranscriptionProvider {
   }
 }
 
+export const WHISPER_MAX_BYTES = 25 * 1024 * 1024;
+
 /** OpenAI-compatible `/audio/transcriptions` endpoint (Whisper). The API caps uploads at 25 MB. */
 export class WhisperTranscriptionProvider implements TranscriptionProvider {
   constructor(
@@ -37,6 +40,10 @@ export class WhisperTranscriptionProvider implements TranscriptionProvider {
   }
 
   async transcribe(filePath: string): Promise<TranscriptionResult> {
+    // Fail before uploading a file the API will refuse anyway.
+    if ((await stat(filePath)).size > WHISPER_MAX_BYTES) {
+      throw new Error('The video is over the 25 MB Whisper limit; write the transcript by hand');
+    }
     const form = new FormData();
     form.set('model', this.opts.model);
     form.set('response_format', 'json');

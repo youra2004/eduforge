@@ -11,7 +11,10 @@ export const needsTranscription = (item: {
   transcriptText: string | null;
 }) => item.kind === 'video' && !!item.videoStorageKey && (item.transcriptText ?? '').trim() === '';
 
-/** Video items that still wait for an automatic transcript. */
+/** After this many failed transcription calls the sweep stops retrying an item; an edit does not reset it. */
+export const MAX_TRANSCRIPTION_FAILURES = 3;
+
+/** Video items that still wait for an automatic transcript, minus those that keep failing. */
 export async function findUntranscribedItemIds(db: Db): Promise<string[]> {
   const rows = await db
     .select({ id: contentItems.id })
@@ -21,6 +24,7 @@ export async function findUntranscribedItemIds(db: Db): Promise<string[]> {
         eq(contentItems.kind, 'video'),
         isNotNull(contentItems.videoStorageKey),
         or(isNull(contentItems.transcriptText), sql`btrim(${contentItems.transcriptText}) = ''`),
+        sql`(SELECT count(*) FROM llm_runs r WHERE r.purpose = 'transcription' AND r.subject_id = ${contentItems.id} AND r.response IS NULL) < ${MAX_TRANSCRIPTION_FAILURES}`,
       ),
     )
     .orderBy(asc(contentItems.id));
@@ -54,6 +58,8 @@ export async function transcribeItem(
     .where(
       and(
         eq(contentItems.id, item.id),
+        // The file may have been swapped while Whisper was working: then this text is for the old one.
+        eq(contentItems.videoStorageKey, item.videoStorageKey!),
         or(isNull(contentItems.transcriptText), sql`btrim(${contentItems.transcriptText}) = ''`),
       ),
     )

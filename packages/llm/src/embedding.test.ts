@@ -4,6 +4,7 @@ import { EmbeddingClient, MockEmbeddingProvider, OpenAIEmbeddingProvider } from 
 import type { LLMRunStore } from './store';
 import {
   MockTranscriptionProvider,
+  WHISPER_MAX_BYTES,
   TranscriptionClient,
   WhisperTranscriptionProvider,
 } from './transcription';
@@ -162,5 +163,20 @@ describe('transcription', () => {
     expect(url).toBe('https://api.openai.com/v1/audio/transcriptions');
     expect(body!.get('model')).toBe('whisper-1');
     expect((body!.get('file') as File).size).toBe(5);
+  });
+
+  it('refuses a file over the Whisper size limit without uploading it', async () => {
+    const file = join(tmpdir(), `whisper-big-${Date.now()}.mp4`);
+    writeFileSync(file, Buffer.alloc(WHISPER_MAX_BYTES + 1));
+    let called = false;
+    const provider = new WhisperTranscriptionProvider(
+      { apiKey: 'k', model: 'whisper-1' },
+      (async () => {
+        called = true;
+        return Response.json({ text: 'x' });
+      }) as unknown as typeof fetch,
+    );
+    await expect(provider.transcribe(file)).rejects.toThrow(/25 MB/);
+    expect(called).toBe(false);
   });
 });

@@ -387,6 +387,100 @@ describe('videos and transcripts', () => {
   });
 });
 
+describe('replacing a video file', () => {
+  const mp4 = () => [Buffer.from('\0\0\0\x18ftypmp42 fake video')];
+
+  async function whisperVideo() {
+    const { author, nodeIds } = await setup();
+    const dir = await mkdtemp(join(tmpdir(), 'eduforge-test-'));
+    const a = await saveVideo(dir, mp4());
+    const b = await saveVideo(dir, mp4());
+    const video = await createContentItem(db, author, nodeIds[0]!, {
+      kind: 'video',
+      title: 'Файл',
+      videoStorageKey: a.key,
+    });
+    const transcriber = new TranscriptionClient(
+      new MockTranscriptionProvider(),
+      new DrizzleLLMRunStore(db),
+    );
+    await transcribeItem(db, transcriber, dir, video.id);
+    return { author, dir, video, transcriber, a: a.key, b: b.key };
+  }
+
+  it('drops the old Whisper transcript even when the editor sends it back unchanged', async () => {
+    const { author, video, a, b } = await whisperVideo();
+    const [before] = await db.select().from(contentItems).where(eq(contentItems.id, video.id));
+    expect(before).toMatchObject({ transcriptSource: 'whisper', videoStorageKey: a });
+
+    const after = await updateContentItem(db, author, video.id, {
+      title: 'Файл',
+      videoStorageKey: b,
+      transcriptText: before!.transcriptText,
+    });
+    expect(after).toMatchObject({
+      videoStorageKey: b,
+      transcriptText: null,
+      transcriptSource: null,
+    });
+    expect(await findUntranscribedItemIds(db)).toContain(video.id);
+  });
+
+  it("keeps an author's transcript when the file is replaced", async () => {
+    const { author, video, b } = await whisperVideo();
+    const after = await updateContentItem(db, author, video.id, {
+      videoStorageKey: b,
+      transcriptText: 'Тепер мій текст.',
+    });
+    expect(after).toMatchObject({ transcriptText: 'Тепер мій текст.', transcriptSource: 'author' });
+  });
+
+  it('a transcription that finishes after the file was swapped is not written', async () => {
+    const { dir, video, b } = await whisperVideo();
+    await db
+      .update(contentItems)
+      .set({ transcriptText: null, transcriptSource: null })
+      .where(eq(contentItems.id, video.id));
+    // the job read the item with file `a`; while Whisper works, the author swaps in file `b`
+    const slow = new TranscriptionClient(
+      {
+        model: 'slow',
+        transcribe: async () => {
+          await db
+            .update(contentItems)
+            .set({ videoStorageKey: b })
+            .where(eq(contentItems.id, video.id));
+          return { text: 'Текст старого файлу', costUsd: 0 };
+        },
+      },
+      new DrizzleLLMRunStore(db),
+    );
+    expect(await transcribeItem(db, slow, dir, video.id)).toEqual({ transcribed: false });
+    const [row] = await db.select().from(contentItems).where(eq(contentItems.id, video.id));
+    expect(row).toMatchObject({ videoStorageKey: b, transcriptText: null });
+  });
+
+  it('stops queueing an item after repeated transcription failures', async () => {
+    const { video, dir } = await (async () => {
+      const w = await whisperVideo();
+      await db
+        .update(contentItems)
+        .set({ transcriptText: null, transcriptSource: null })
+        .where(eq(contentItems.id, w.video.id));
+      return w;
+    })();
+    const broken = new TranscriptionClient(
+      { model: 'broken', transcribe: async () => Promise.reject(new Error('413')) },
+      new DrizzleLLMRunStore(db),
+    );
+    for (let i = 0; i < 3; i++) {
+      expect(await findUntranscribedItemIds(db)).toContain(video.id);
+      await transcribeItem(db, broken, dir, video.id).catch(() => {});
+    }
+    expect(await findUntranscribedItemIds(db)).not.toContain(video.id);
+  });
+});
+
 describe('storage', () => {
   it('accepts an mp4, rejects other files and oversized uploads, and serves only visible videos', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'eduforge-test-'));

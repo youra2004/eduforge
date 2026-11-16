@@ -180,52 +180,58 @@ export async function updateContentItem(
 ) {
   const patch = parse(updateInput, input);
   if (Object.keys(patch).length === 0) throw invalid('Nothing to update.');
-  const item = await loadItem(db, user, itemId);
+  const seen = await loadItem(db, user, itemId);
 
-  const next: Partial<typeof contentItems.$inferInsert> = { updatedAt: new Date() };
-  if (patch.title !== undefined) next.title = patch.title;
-  if (patch.ord !== undefined) next.ord = patch.ord;
-  if (item.kind === 'markdown') {
-    if (
-      patch.videoUrl !== undefined ||
-      patch.videoStorageKey !== undefined ||
-      patch.transcriptText !== undefined
-    ) {
-      throw invalid('A markdown item has no video fields.');
-    }
-    if (patch.bodyMd !== undefined) next.bodyMd = patch.bodyMd;
-  } else {
-    if (patch.bodyMd !== undefined) throw invalid('A video item has no markdown body.');
-    if (patch.videoUrl !== undefined) next.videoUrl = patch.videoUrl;
-    if (patch.videoStorageKey !== undefined) next.videoStorageKey = patch.videoStorageKey;
-    const url = patch.videoUrl !== undefined ? patch.videoUrl : item.videoUrl;
-    const key = patch.videoStorageKey !== undefined ? patch.videoStorageKey : item.videoStorageKey;
-    if (!url && !key) throw invalid('A video needs a link or an uploaded file.', 'videoUrl');
-    if (patch.transcriptText !== undefined) {
-      if ((patch.transcriptText ?? '').trim() !== (item.transcriptText ?? '').trim()) {
+  return editNode(db, user, seen.nodeId, async (tx) => {
+    // Read again under a row lock: the patch is worked out from the row as it is now, not as it was.
+    const [item] = await tx
+      .select()
+      .from(contentItems)
+      .where(eq(contentItems.id, itemId))
+      .for('update');
+    if (!item) throw new CourseError('content_not_found');
+
+    const next: Partial<typeof contentItems.$inferInsert> = { updatedAt: new Date() };
+    if (patch.title !== undefined) next.title = patch.title;
+    if (patch.ord !== undefined) next.ord = patch.ord;
+    if (item.kind === 'markdown') {
+      if (
+        patch.videoUrl !== undefined ||
+        patch.videoStorageKey !== undefined ||
+        patch.transcriptText !== undefined
+      ) {
+        throw invalid('A markdown item has no video fields.');
+      }
+      if (patch.bodyMd !== undefined) next.bodyMd = patch.bodyMd;
+    } else {
+      if (patch.bodyMd !== undefined) throw invalid('A video item has no markdown body.');
+      if (patch.videoUrl !== undefined) next.videoUrl = patch.videoUrl;
+      if (patch.videoStorageKey !== undefined) next.videoStorageKey = patch.videoStorageKey;
+      const url = patch.videoUrl !== undefined ? patch.videoUrl : item.videoUrl;
+      const key =
+        patch.videoStorageKey !== undefined ? patch.videoStorageKey : item.videoStorageKey;
+      if (!url && !key) throw invalid('A video needs a link or an uploaded file.', 'videoUrl');
+
+      const authorEdited =
+        patch.transcriptText !== undefined &&
+        (patch.transcriptText ?? '').trim() !== (item.transcriptText ?? '').trim();
+      if (authorEdited) {
         const text = blank(patch.transcriptText) ? null : patch.transcriptText!.trim();
         next.transcriptText = text;
         next.transcriptSource = text ? 'author' : null;
+      } else if (key !== item.videoStorageKey && item.transcriptSource === 'whisper') {
+        // A new file makes the old automatic transcript wrong, even if the editor sent it back unchanged.
+        next.transcriptText = null;
+        next.transcriptSource = null;
       }
-    } else if (
-      patch.videoStorageKey !== undefined &&
-      patch.videoStorageKey !== item.videoStorageKey &&
-      item.transcriptSource === 'whisper'
-    ) {
-      // A new file makes the old automatic transcript wrong.
-      next.transcriptText = null;
-      next.transcriptSource = null;
     }
-  }
 
-  return editNode(db, user, item.nodeId, async (tx) => {
     const [row] = await tx
       .update(contentItems)
       .set(next)
       .where(eq(contentItems.id, itemId))
       .returning();
-    if (!row) throw new CourseError('content_not_found');
-    return present(row);
+    return present(row!);
   });
 }
 
