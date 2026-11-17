@@ -50,6 +50,13 @@
       "when": 1794900658056,
       "tag": "0006_learning_engine",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794905180363,
+      "tag": "0007_tutor",
+      "breakpoints": true
     }
   ]
 }

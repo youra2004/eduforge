@@ -576,3 +576,51 @@ export const eventLog = pgTable(
 export type Assessment = typeof assessments.$inferSelect;
 export type AssessmentItem = typeof assessmentItems.$inferSelect;
 export type NodeProgress = typeof nodeProgress.$inferSelect;
+
+// AI tutor (DATA_MODEL.md section 8, F6). A session is one conversation about a node, optionally about one question.
+export const tutorSessions = pgTable(
+  'tutor_sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => nodes.id),
+    questionId: uuid('question_id').references(() => questions.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('tutor_sessions_user_idx').on(t.userId, t.createdAt)],
+);
+
+export const tutorRoles = ['student', 'tutor'] as const;
+export type TutorRole = (typeof tutorRoles)[number];
+
+/** `guardVerdict` and `retrievedChunkIds` are the research log of F6-R8 (P5, H4). */
+export const tutorMessages = pgTable(
+  'tutor_messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    sessionId: uuid('session_id')
+      .notNull()
+      .references(() => tutorSessions.id),
+    role: text('role').$type<TutorRole>().notNull(),
+    content: text('content').notNull(),
+    hintLevel: smallint('hint_level'),
+    guardVerdict: jsonb('guard_verdict'),
+    retrievedChunkIds: uuid('retrieved_chunk_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    llmRunId: uuid('llm_run_id').references(() => llmRuns.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('tutor_messages_role_check', sql`${t.role} IN ('student', 'tutor')`),
+    index('tutor_messages_session_idx').on(t.sessionId, t.createdAt),
+  ],
+);
+
+export type TutorSession = typeof tutorSessions.$inferSelect;
+export type TutorMessage = typeof tutorMessages.$inferSelect;
