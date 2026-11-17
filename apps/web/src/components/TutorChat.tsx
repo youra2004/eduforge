@@ -33,6 +33,16 @@ export function TutorChat({
   async function send(message: string) {
     setBusy(true);
     setError(null);
+    try {
+      await ask(message);
+    } catch {
+      setError('Не вдалося зв’язатися із сервером. Спробуйте ще раз.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function ask(message: string) {
     const res = await fetch(`/api/nodes/${nodeId}/tutor`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -62,7 +72,6 @@ export function TutorChat({
         typeof json?.message === 'string' ? json.message : 'Щось пішло не так. Спробуйте ще раз.',
       );
     }
-    setBusy(false);
   }
 
   function submit(e: FormEvent) {

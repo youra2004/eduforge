@@ -461,6 +461,11 @@ describe('guard (F6-R5) and fallback (F6-R6)', () => {
     }
     // level 1 has no author hint (generic), levels 2 and 3 use the level-2 one
     expect(shown).toEqual([GENERIC_HINTS[1], 'Вказівка рівня 2.', 'Вказівка рівня 2.']);
+    // a leaking level 3 costs two tries (3, then 2), not three (ADR-0009)
+    const last = (await messagesOf(sessionId!)).filter((m) => m.role === 'tutor').at(-1)!;
+    expect(
+      (last.guardVerdict as { attempts: { level: number }[] }).attempts.map((a) => a.level),
+    ).toEqual([3, 2]);
   });
 });
 
@@ -531,6 +536,43 @@ describe('availability and limits (F6-R1, NFR-4, NFR-7)', () => {
     );
     await db.update(assessments).set({ status: 'failed' }).where(eq(assessments.id, test.id));
     expect(await code(askTutor(db, deps, student, types.id, { message: 'Допоможи' }))).toBe('ok');
+  });
+
+  it("is off in every node while a test is running: another node's chat cannot coach it", async () => {
+    const { student, types, start } = await setup();
+    const settings = learningSettings(loadConfig({ DATABASE_URL: 'x' }));
+    await db.insert(questions).values(
+      types.skillIds.flatMap((skillId) =>
+        Array.from({ length: 4 }, (_, i) => ({
+          nodeId: types.id,
+          skillId,
+          pool: 'node' as const,
+          kind: 'mcq' as const,
+          promptMd: `Тест ${i}`,
+          options: ['a', 'b', 'c', 'd'],
+          answerKey: { optionIndex: 1 },
+          guess: 0.25,
+          status: 'validated' as const,
+        })),
+      ),
+    );
+    await startNodeTest(db, student, types.id, settings, new Date());
+    const { deps } = makeDeps();
+    expect(await code(askTutor(db, deps, student, start.id, { message: 'Допоможи' }))).toBe(
+      'tutor_unavailable',
+    );
+  });
+
+  it('parallel requests cannot get past the rate limit together', async () => {
+    const { student, types } = await setup();
+    const { deps } = makeDeps({}, { ratePerMinute: 2 });
+    const results = await Promise.all(
+      Array.from({ length: 30 }, (_, i) =>
+        code(askTutor(db, deps, student, types.id, { message: `паралельно ${i}` })),
+      ),
+    );
+    expect(results.filter((r) => r === 'ok')).toHaveLength(2);
+    expect(results.filter((r) => r === 'tutor_rate_limited')).toHaveLength(28);
   });
 
   it('is off during any exam', async () => {

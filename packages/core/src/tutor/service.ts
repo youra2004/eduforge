@@ -17,6 +17,7 @@ import type { AuthUser } from '../auth/guard';
 import { requireRole } from '../auth/guard';
 import { retrieve } from '../content/retrieve';
 import { CourseError } from '../courses/errors';
+import type { Tx } from '../courses/service';
 import { assertNodeAccess } from '../learning/access';
 import { logEvent } from '../learning/events';
 import { toStudentQuestion } from '../questions/dto';
@@ -78,27 +79,26 @@ export async function allowedNodeIds(db: Db, userId: string, nodeId: string): Pr
   return [nodeId, ...rows.map((r) => r.id)];
 }
 
-/** F6-R1: help is for learning, not for a test that is being taken (a running node test, or any exam). */
-async function assertTutorAvailable(db: Db, userId: string, nodeId: string) {
+/**
+ * F6-R1: help is for learning, not for a test that is being taken. Any running assessment of the student
+ * closes the tutor, whichever node it is on, so another node's chat cannot be used to coach a running test.
+ */
+async function assertTutorAvailable(db: Db | Tx, userId: string) {
   const [running] = await db
     .select({ id: assessments.id })
     .from(assessments)
-    .where(
-      and(
-        eq(assessments.userId, userId),
-        eq(assessments.status, 'in_progress'),
-        or(
-          eq(assessments.kind, 'exam'),
-          and(eq(assessments.kind, 'node_test'), eq(assessments.nodeId, nodeId)),
-        ),
-      ),
-    )
+    .where(and(eq(assessments.userId, userId), eq(assessments.status, 'in_progress')))
     .limit(1);
   if (running) throw new CourseError('tutor_unavailable');
 }
 
 /** Rate limit and daily budget, both read from the log so they hold across restarts and servers. */
-async function assertWithinLimits(db: Db, userId: string, limits: TutorDeps['limits'], now: Date) {
+async function assertWithinLimits(
+  db: Db | Tx,
+  userId: string,
+  limits: TutorDeps['limits'],
+  now: Date,
+) {
   const [recent] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(tutorMessages)
@@ -220,43 +220,49 @@ export async function askTutor(
     requireRole(user, 'student', 'author', 'expert', 'admin'),
     nodeId,
   );
-  await assertTutorAvailable(db, actor.id, nodeId);
-  await assertWithinLimits(db, actor.id, deps.limits, now);
 
   const question = input.questionId ? await loadQuestion(db, nodeId, input.questionId) : null;
   const studentAnswer =
     input.studentAnswer || (question ? await lastTestAnswer(db, actor.id, question) : null) || null;
 
-  let sessionId: string;
-  if (input.sessionId) {
-    const [s] = await db
-      .select()
-      .from(tutorSessions)
-      .where(and(eq(tutorSessions.id, input.sessionId), eq(tutorSessions.userId, actor.id)));
-    // A session belongs to one node and one question; anything else is treated as not found.
-    if (!s || s.nodeId !== nodeId || (s.questionId ?? null) !== (question?.id ?? null)) {
-      throw new CourseError('question_not_found');
-    }
-    sessionId = s.id;
-  } else {
-    const [created] = await db
-      .insert(tutorSessions)
-      .values({ userId: actor.id, nodeId, questionId: question?.id, createdAt: now })
-      .returning({ id: tutorSessions.id });
-    sessionId = created!.id;
-  }
+  // One transaction per user at a time: parallel requests cannot all pass the limit check before any of
+  // them has logged its message (NFR-4).
+  const { sessionId, level, history } = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'tutor:' + actor.id}))`);
+    await assertTutorAvailable(tx, actor.id);
+    await assertWithinLimits(tx, actor.id, deps.limits, now);
 
-  const earlier = await db
-    .select()
-    .from(tutorMessages)
-    .where(eq(tutorMessages.sessionId, sessionId))
-    .orderBy(asc(tutorMessages.createdAt), asc(tutorMessages.id));
-  const level = chooseLevel(earlier.filter((m) => m.role === 'tutor').length);
-  await db.insert(tutorMessages).values({
-    sessionId: sessionId,
-    role: 'student',
-    content: input.message,
-    createdAt: now,
+    let id: string;
+    if (input.sessionId) {
+      const [s] = await tx
+        .select()
+        .from(tutorSessions)
+        .where(and(eq(tutorSessions.id, input.sessionId), eq(tutorSessions.userId, actor.id)));
+      // A session belongs to one node and one question; anything else is treated as not found.
+      if (!s || s.nodeId !== nodeId || (s.questionId ?? null) !== (question?.id ?? null)) {
+        throw new CourseError('question_not_found');
+      }
+      id = s.id;
+    } else {
+      const [created] = await tx
+        .insert(tutorSessions)
+        .values({ userId: actor.id, nodeId, questionId: question?.id, createdAt: now })
+        .returning({ id: tutorSessions.id });
+      id = created!.id;
+    }
+    const earlier = await tx
+      .select()
+      .from(tutorMessages)
+      .where(eq(tutorMessages.sessionId, id))
+      .orderBy(asc(tutorMessages.createdAt), asc(tutorMessages.id));
+    await tx
+      .insert(tutorMessages)
+      .values({ sessionId: id, role: 'student', content: input.message, createdAt: now });
+    return {
+      sessionId: id,
+      level: chooseLevel(earlier.filter((m) => m.role === 'tutor').length),
+      history: earlier.slice(-HISTORY).map((m) => ({ role: m.role, content: m.content })),
+    };
   });
 
   const outcome = await produceHint(db, deps, {
@@ -267,7 +273,7 @@ export async function askTutor(
     studentAnswer,
     message: input.message,
     level,
-    history: earlier.slice(-HISTORY).map((m) => ({ role: m.role, content: m.content })),
+    history,
   });
 
   const [saved] = await db
@@ -329,7 +335,9 @@ async function produceHint(db: Db, deps: TutorDeps, job: HintJob) {
     });
     chunkIds = chunks.map((c) => c.chunkId);
 
-    for (let level: HintLevel | null = job.level; level !== null; level = lowerLevel(level)) {
+    // At most two tries: the asked level, then one level lower (ADR-0009).
+    const tries = [job.level, lowerLevel(job.level)].filter((l): l is HintLevel => l !== null);
+    for (const level of tries) {
       const attempt: Attempt = {
         level,
         revealed: null,
