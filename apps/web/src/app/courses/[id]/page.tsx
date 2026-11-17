@@ -150,6 +150,18 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
           <Link href="/experiment">Дослідження</Link>.
         </p>
       )}
+      {progress && !study && (
+        <p>
+          <Link href={`/courses/${id}/exam`} data-testid="exam-link">
+            Фінальний іспит
+          </Link>{' '}
+          <span className="muted">
+            {progress.every((p) => p.state === 'passed')
+              ? '— усі вузли пройдено, іспит доступний'
+              : '— відкриється, коли буде пройдено всі вузли'}
+          </span>
+        </p>
+      )}
       {progress && (
         <p className="hint graph-legend" data-testid="graph-legend">
           {(['available', 'in_progress', 'passed', 'cooldown', 'locked'] as const).map((s) => (

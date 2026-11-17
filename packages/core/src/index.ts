@@ -8,3 +8,4 @@ export * from './questions';
 export * from './learning';
 export * from './tutor';
 export * from './experiment';
+export * from './exam';

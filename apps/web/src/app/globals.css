@@ -597,3 +597,40 @@ blockquote {
 .audit table {
   margin-bottom: 16px;
 }
+
+.exam-timers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 8px 0 16px;
+  font-variant-numeric: tabular-nums;
+}
+.exam-timers strong {
+  font-size: 1.25rem;
+}
+.exam-timers .urgent {
+  color: #b42318;
+}
+.precheck {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.precheck li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+}
+.level {
+  font-size: 0.85rem;
+}
+.level.perfect {
+  color: #0a7a3d;
+}
+.level.needs_work {
+  color: #b42318;
+}

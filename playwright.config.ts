@@ -26,6 +26,8 @@ export default defineConfig({
       // The 24 h wait before the delayed test lasts 10 s here, and the heartbeat comes every 2 s.
       EXPERIMENT_DELAY_SECONDS: '14400',
       EXPERIMENT_HEARTBEAT_SECONDS: '2',
+      // An exam question lasts 20 s here (90 s in production), so the e2e run can wait out a deadline.
+      EXAM_CHOICE_QUESTION_SECONDS: '20',
     },
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,

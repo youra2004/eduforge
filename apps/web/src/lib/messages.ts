@@ -51,6 +51,12 @@ export const errorMessages: Record<AuthErrorCode | CourseErrorCode | 'internal',
   review_not_found: 'Перевірку не знайдено.',
   invalid_review: 'Рішення експерта заповнено неповно. Перегляньте список проблем.',
   review_conflict: 'Цю перевірку вже призначено або розглянуто.',
+  exam_not_eligible: 'Іспит відкриється, коли ви пройдете всі вузли курсу.',
+  exam_banned: 'Вам тимчасово закрито доступ до іспитів. Навчання залишається доступним.',
+  exam_cooldown: 'Спроби цього раунду вичерпано. Новий раунд почнеться після паузи.',
+  exam_passed: 'Іспит із цього курсу вже складено.',
+  exam_time_expired: 'Час на це питання вичерпано. Відповідь не прийнято.',
+  exam_not_current: 'Відповісти можна лише на поточне питання.',
   internal: 'Щось пішло не так. Спробуйте ще раз.',
 };
 
@@ -148,3 +154,9 @@ export function notificationText(type: string, p: Record<string, unknown>): stri
       return type;
   }
 }
+
+export const examSkillLevelLabels = {
+  perfect: 'Опановано досконало',
+  good: 'Добре',
+  needs_work: 'Потребує доопрацювання',
+} as const;

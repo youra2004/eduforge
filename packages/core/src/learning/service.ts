@@ -14,6 +14,7 @@ import {
   skills,
   type Assessment,
   type Db,
+  type NodeSkillResult,
   type NodeState,
 } from '@eduforge/db';
 import type { LLMClient } from '@eduforge/llm';
@@ -349,6 +350,8 @@ export async function getAssessment(
 ) {
   const actor = student(user);
   const a = await loadOwnAssessment(db, actor, assessmentId);
+  // The exam shows one question at a time and has its own view (M09); this one would list them all.
+  if (a.kind === 'exam') throw new CourseError('assessment_not_found');
   const items = await db
     .select({ item: assessmentItems, question: questions })
     .from(assessmentItems)
@@ -382,7 +385,7 @@ export async function getAssessment(
         ? {
             passed: a.status === 'passed',
             scorePct: a.scorePct,
-            perSkill: a.perSkill ?? [],
+            perSkill: (a.perSkill ?? []) as NodeSkillResult[],
             threshold: settings.passThreshold,
             node: view && {
               state: view.state,
