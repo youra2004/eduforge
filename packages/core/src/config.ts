@@ -22,6 +22,7 @@ const envSchema = z
     BKT_P_INIT: fraction(0.2),
     BKT_LEARN: fraction(0.15),
     BKT_SLIP: fraction(0.1),
+    NODE_TEST_QUESTIONS_PER_SKILL: count(3),
     NODE_ATTEMPTS_PER_ROUND: count(2),
     NODE_COOLDOWN_SECONDS: seconds(24 * 60 * 60),
 
@@ -72,6 +73,7 @@ function toConfig(env: z.infer<typeof envSchema>) {
     timeScale: env.TIME_SCALE,
     node: {
       passThreshold: env.NODE_PASS_THRESHOLD,
+      questionsPerSkill: env.NODE_TEST_QUESTIONS_PER_SKILL,
       attemptsPerRound: env.NODE_ATTEMPTS_PER_ROUND,
       cooldownSeconds: env.NODE_COOLDOWN_SECONDS,
     },

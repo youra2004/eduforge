@@ -24,6 +24,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { AuthError, type AuthUser } from '../auth/guard';
 import { CourseError } from '../courses/errors';
 import { createNewVersion, getVersionGraph, importCourse } from '../courses/service';
+import { enroll } from '../learning/service';
 import { findStaleNodeIds, indexNode } from './indexing';
 import { retrieve } from './retrieve';
 import {
@@ -509,6 +510,9 @@ describe('storage', () => {
       .update(courseVersions)
       .set({ status: 'published' })
       .where(eq(courseVersions.id, versionId));
+    // a published video is still closed until the student has joined the course (and its node is open)
+    expect(await codeOf(getVideoFile(db, student, dir, key))).toBe('media_not_found');
+    await enroll(db, student, versionId);
     expect((await getVideoFile(db, student, dir, key)).size).toBe(size);
     // keys that are not ours never reach the file system
     expect(await codeOf(getVideoFile(db, student, dir, '../../etc/passwd'))).toBe(
@@ -521,7 +525,7 @@ describe('storage', () => {
 
 describe('permissions and editing rules', () => {
   it('only the owner or an admin may edit; drafts are hidden from students', async () => {
-    const { author, nodeIds } = await setup();
+    const { author, versionId, nodeIds } = await setup();
     const node = nodeIds[0]!;
     const other = await makeUser(['author']);
     const student = await makeUser(['student']);
@@ -543,6 +547,8 @@ describe('permissions and editing rules', () => {
       .where(
         inArray(courseVersions.id, sql`(select course_version_id from nodes where id = ${node})`),
       );
+    expect(await codeOf(listNodeContent(db, student, node))).toBe('not_enrolled');
+    await enroll(db, student, versionId);
     const asStudent = await listNodeContent(db, student, node);
     expect(asStudent.canEdit).toBe(false);
     expect(asStudent.items).toHaveLength(1);

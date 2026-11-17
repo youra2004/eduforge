@@ -7,7 +7,12 @@ describe('loadConfig', () => {
   it('applies SPEC defaults', () => {
     const c = loadConfig(base);
     expect(c.timeScale).toBe(1);
-    expect(c.node).toEqual({ passThreshold: 0.8, attemptsPerRound: 2, cooldownSeconds: 86400 });
+    expect(c.node).toEqual({
+      passThreshold: 0.8,
+      questionsPerSkill: 3,
+      attemptsPerRound: 2,
+      cooldownSeconds: 86400,
+    });
     expect(c.bkt).toEqual({ pInit: 0.2, learn: 0.15, slip: 0.1 });
     expect(c.exam.passPct).toBe(0.7);
     expect(c.exam.cooldownSeconds).toBe(7 * 86400);
