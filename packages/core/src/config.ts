@@ -11,6 +11,33 @@ const fraction = (def: number) =>
 const count = (def: number) =>
   z.preprocess(blankToUndefined, z.coerce.number().int().positive().default(def));
 
+/** `"6:3,12:6,20:9"`: below 6 nodes the cap is 3, below 12 it is 6, below 20 it is 9, from 20 on it is 10 (F4-R1). */
+const volumeCaps = z
+  .preprocess(blankToUndefined, z.string().default('6:3,12:6,20:9'))
+  .transform((raw, ctx) => {
+    const steps = raw.split(',').map((part) => {
+      const [below, cap] = part.split(':').map((n) => Number(n.trim()));
+      return { below: below!, cap: cap! };
+    });
+    const ok = steps.every(
+      (s, i) =>
+        Number.isInteger(s.below) &&
+        s.below > 0 &&
+        Number.isInteger(s.cap) &&
+        s.cap >= 1 &&
+        s.cap <= 9 &&
+        (i === 0 || (s.below > steps[i - 1]!.below && s.cap > steps[i - 1]!.cap)),
+    );
+    if (!ok) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'expected ascending "nodes:cap" pairs such as 6:3,12:6,20:9 (caps 1-9)',
+      });
+      return z.NEVER;
+    }
+    return steps;
+  });
+
 const optional = z.preprocess(blankToUndefined, z.string().min(1).optional());
 
 const envSchema = z
@@ -44,6 +71,10 @@ const envSchema = z
 
     SNAPSHOT_INTERVAL_SECONDS: seconds(60),
     EVIDENCE_RETENTION_DAYS: seconds(30),
+
+    AUDIT_MAX_ATTEMPTS: count(5),
+    AUDIT_SCORING_RUNS: count(5),
+    AUDIT_VOLUME_CAPS: volumeCaps,
 
     SESSION_TTL_SECONDS: seconds(7 * 24 * 60 * 60),
     LOGIN_MAX_ATTEMPTS: count(5),
@@ -109,6 +140,11 @@ function toConfig(env: z.infer<typeof envSchema>) {
     proctoring: {
       snapshotIntervalSeconds: env.SNAPSHOT_INTERVAL_SECONDS,
       evidenceRetentionDays: env.EVIDENCE_RETENTION_DAYS,
+    },
+    audit: {
+      maxAttempts: env.AUDIT_MAX_ATTEMPTS,
+      scoringRuns: env.AUDIT_SCORING_RUNS,
+      volumeCaps: env.AUDIT_VOLUME_CAPS,
     },
     auth: {
       sessionTtlSeconds: env.SESSION_TTL_SECONDS,
