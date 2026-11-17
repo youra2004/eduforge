@@ -1,0 +1,25 @@
+$ pnpm --filter @eduforge/core create-admin admin-773920958@curl.local Admin
+$ tsx --env-file-if-exists=../../.env scripts/create-admin.ts admin-773920958@curl.local Admin
+# create course
+{"courseId":"b0b49508-092e-49d4-8980-72d1312913b3","versionId":"47669b4a-0bd1-4568-b812-026c82c69382"}
+# add skill + node
+# edge N1->N2 ok, then the cycle N2->N1 is refused
+{}
+HTTP 422 {"error":"invalid_graph_edit","issues":["cycle"]}
+# submit before the course is complete -> 422 with reasons (no run used)
+HTTP 422 {"error":"invalid_course","issues":["Node \"Змінні\" has no content.","Node \"Цикли\" has no content.","Node \"Змінні\", skill \"Змінні\": 0 of 4 validated questions in the node pool (4 missing).","Node \"Цикли\", skill \"Змінні\": 0 of 4 validated questions in the node pool (4 missing).","Skill \"Змінні\": 0 of 3 validated questions in the exam pool (3 missing)."]}
+# add material and question pools, then submit
+HTTP 202 {"versionId":"47669b4a-0bd1-4568-b812-026c82c69382","attemptNo":1}
+# author's audit view (no thresholds)
+{"status":"ready_to_publish","attemptsUsed":1,"attemptsMax":5,"rating":2,"level":"junior","hardness":0.25,"limited":false,"feedback":{"edgeCases":"Mock: 0 блоків коду на вузол.","theoryDepth":"Mock: близько 91 символів теорії на вузол.","questionTrickiness":"Mock: середня складність питань 0.5."},"skills":[{"name":"Змінні","verified":true}]}
+# publish, then every edit is refused
+HTTP 200 {"versionId":"47669b4a-0bd1-4568-b812-026c82c69382","status":"published","rating":2}
+HTTP 409 {"error":"version_locked"}
+HTTP 409 {"error":"version_locked"}
+# llm_runs of the audit
+ audit_conformity |     1
+ audit_skills     |     1
+ audit_scoring    |     5
+
+# new version: draft, audit counter reset
+{"status":"draft","attemptsUsed":0,"rating":null}
