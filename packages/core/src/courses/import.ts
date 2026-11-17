@@ -31,6 +31,16 @@ export const courseImportSchema = z.object({
         title: z.string().trim().min(1).max(200),
         summary: z.string().trim().max(2000).default(''),
         skills: z.array(key).max(50),
+        /** The tutor's fallback hints (F1-R4, F6-R6): level 1 leading question, 2 concept pointer, 3 example. */
+        hints: z
+          .array(
+            z.object({
+              level: z.number().int().min(1).max(3),
+              text: z.string().trim().min(1).max(1500),
+            }),
+          )
+          .max(9)
+          .default([]),
         position: z.object({ x: z.number().finite(), y: z.number().finite() }).optional(),
       }),
     )

@@ -26,6 +26,9 @@ const envSchema = z
     NODE_ATTEMPTS_PER_ROUND: count(2),
     NODE_COOLDOWN_SECONDS: seconds(24 * 60 * 60),
 
+    TUTOR_RATE_PER_MINUTE: count(6),
+    TUTOR_DAILY_TOKEN_BUDGET: count(60000),
+
     POOL_NODE_MIN_PER_SKILL: count(4),
     POOL_EXAM_MIN_PER_SKILL: count(3),
     OPEN_PASS_THRESHOLD: fraction(0.7),
@@ -76,6 +79,10 @@ function toConfig(env: z.infer<typeof envSchema>) {
       questionsPerSkill: env.NODE_TEST_QUESTIONS_PER_SKILL,
       attemptsPerRound: env.NODE_ATTEMPTS_PER_ROUND,
       cooldownSeconds: env.NODE_COOLDOWN_SECONDS,
+    },
+    tutor: {
+      ratePerMinute: env.TUTOR_RATE_PER_MINUTE,
+      dailyTokenBudget: env.TUTOR_DAILY_TOKEN_BUDGET,
     },
     questions: {
       nodeMinPerSkill: env.POOL_NODE_MIN_PER_SKILL,

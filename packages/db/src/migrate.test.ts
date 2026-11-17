@@ -16,6 +16,7 @@ const hasUsers = () => exists("to_regclass('public.users') IS NOT NULL");
 const hasCourses = () => exists("to_regclass('public.course_versions') IS NOT NULL");
 const hasContent = () => exists("to_regclass('public.content_chunks') IS NOT NULL");
 const hasQuestions = () => exists("to_regclass('public.questions') IS NOT NULL");
+const hasTutor = () => exists("to_regclass('public.tutor_messages') IS NOT NULL");
 const hasLearning = () => exists("to_regclass('public.skill_mastery') IS NOT NULL");
 
 describe('migrations', () => {
@@ -27,11 +28,13 @@ describe('migrations', () => {
     expect(await hasContent()).toBe(true);
     expect(await hasQuestions()).toBe(true);
     expect(await hasLearning()).toBe(true);
+    expect(await hasTutor()).toBe(true);
   });
 
   it('roll back, and apply again', async () => {
-    const rolledBack = await migrateDown(url, 7);
+    const rolledBack = await migrateDown(url, 8);
     expect(rolledBack).toEqual([
+      '0007_tutor',
       '0006_learning_engine',
       '0005_question_bank',
       '0004_content_embeddings',
@@ -40,6 +43,7 @@ describe('migrations', () => {
       '0001_llm_runs',
       '0000_enable_vector',
     ]);
+    expect(await hasTutor()).toBe(false);
     expect(await hasLearning()).toBe(false);
     expect(await hasQuestions()).toBe(false);
     expect(await hasContent()).toBe(false);
@@ -49,6 +53,7 @@ describe('migrations', () => {
     expect(await hasVector()).toBe(false);
 
     await migrateUp(url);
+    expect(await hasTutor()).toBe(true);
     expect(await hasLearning()).toBe(true);
     expect(await hasQuestions()).toBe(true);
     expect(await hasContent()).toBe(true);

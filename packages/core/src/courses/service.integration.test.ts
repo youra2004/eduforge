@@ -8,6 +8,7 @@ import {
   nodeSkills,
   skills,
   users,
+  staticHints,
 } from '@eduforge/db';
 import { eq, inArray } from 'drizzle-orm';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -192,6 +193,28 @@ describe('immutability of published versions (D-06)', () => {
       'invalid_course',
     );
     expect(await codeOf(updateVersion(db, owner, versionId, {}))).toBe('invalid_course');
+  });
+});
+
+describe('static hints (F1-R4, F6-R6)', () => {
+  it('are imported with the node and copied into a new version', async () => {
+    const owner = await makeUser(['author']);
+    const input = course();
+    for (const x of input.nodes) x.hints = [];
+    input.nodes[0]!.hints = [{ level: 2, text: 'Перегляньте розділ про змінні.' }];
+    const { versionId } = await importCourse(db, input, owner.id);
+    await publish(versionId);
+    const { versionId: copyId } = await createNewVersion(db, owner, versionId);
+
+    for (const id of [versionId, copyId]) {
+      const graph = await getVersionGraph(db, owner, id);
+      const nodeIds = graph.nodes.map((x) => x.id);
+      const hints = await db.select().from(staticHints).where(inArray(staticHints.nodeId, nodeIds));
+      expect(hints.map((h) => [h.level, h.text])).toEqual([[2, 'Перегляньте розділ про змінні.']]);
+    }
+    const bad = structuredClone(input);
+    bad.nodes[0]!.hints = [{ level: 4, text: 'x' }];
+    expect(await codeOf(importCourse(db, bad, owner.id))).toBe('invalid_course');
   });
 });
 

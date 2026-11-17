@@ -30,6 +30,11 @@ export const errorMessages: Record<AuthErrorCode | CourseErrorCode | 'internal',
   assessment_not_found: 'Тест не знайдено.',
   assessment_closed: 'Цей тест уже завершено.',
   already_answered: 'На це питання вже відповіли.',
+  invalid_tutor_input: 'Повідомлення має містити від 1 до 1000 символів.',
+  tutor_unavailable:
+    'Репетитор недоступний, поки триває тест (на цьому або іншому вузлі). Завершіть розпочатий тест.',
+  tutor_rate_limited: 'Забагато запитів до репетитора. Зачекайте хвилину.',
+  tutor_budget_exceeded: 'Денний ліміт підказок вичерпано. Спробуйте завтра.',
   internal: 'Щось пішло не так. Спробуйте ще раз.',
 };
 
