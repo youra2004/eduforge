@@ -44,6 +44,9 @@ export interface ExamViewData {
   } | null;
 }
 
+/** A connection drop shorter than this is not reported as an interruption. */
+const MIN_DROP_MS = 10_000;
+
 const clock = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
@@ -115,14 +118,18 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
   );
 
   // A lost connection stops the test without a strike (F8-R6): the server is told once the line is back.
+  // A drop shorter than a few seconds is not an interruption, so it cannot use one up.
   useEffect(() => {
     if (exam.status !== 'in_progress') return;
-    const off = () => setOffline(true);
+    let since: number | null = null;
+    const off = () => {
+      since = Date.now();
+      setOffline(true);
+    };
     const on = () => {
-      setOffline((was) => {
-        if (was) void interrupt('network');
-        return false;
-      });
+      setOffline(false);
+      if (since !== null && Date.now() - since >= MIN_DROP_MS) void interrupt('network');
+      since = null;
     };
     window.addEventListener('offline', off);
     window.addEventListener('online', on);

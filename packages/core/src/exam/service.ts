@@ -202,6 +202,11 @@ async function settle(
       .where(eq(assessmentItems.id, clock.current.id));
   }
   if (clock.missed.length > 0 || clock.current) rows = await loadRows(tx, assessmentId);
+  // An answer taken in time but still being graded has no points yet; its request finishes the exam.
+  const grading = rows.some((r) => r.item.answeredAt && r.item.score === null);
+  if (!clock.current && grading) {
+    return { a, rows, current: null, missedIds: clock.missed.map((m) => m.id) };
+  }
   if (!clock.current) {
     const endedAt = clock.missed[clock.missed.length - 1]?.at ?? now;
     const finished = await finishExam(tx, a, rows, settings, endedAt);
@@ -629,60 +634,75 @@ export async function answerExam(
 ) {
   const actor = student(user);
   const own = await loadOwnExam(db, actor, examId);
-  const first = await db.transaction((tx) => settle(tx, own.id, settings, now));
-  if (first.current?.id !== itemId) throw refuse(first, itemId);
-  const question = first.rows.find((r) => r.item.id === itemId)!.question;
-  const parsed = studentAnswer[question.kind].safeParse(answer);
-  if (!parsed.success) throw new CourseError('invalid_question');
-
-  // The LLM call (short/open) stays outside the transaction; the write below checks the clock again.
-  const grade = await gradeAnswer(
-    { llm, openPassThreshold: settings.openPassThreshold },
-    question,
-    answer,
-  );
-
-  await db.transaction(async (tx) => {
+  // Reserve the answer under the lock first: once it is taken in time, nothing that runs while it is graded
+  // (a page reload past the deadline, say) can close the question as missed (P1).
+  const reserved = await db.transaction(async (tx) => {
     const s = await settle(tx, own.id, settings, now);
-    if (s.current?.id !== itemId) throw refuse(s, itemId);
-    const [saved] = await tx
+    // Returned, not thrown: the questions the clock just closed must stay closed.
+    if (s.current?.id !== itemId) return { refusal: refuse(s, itemId) };
+    const q = s.rows.find((r) => r.item.id === itemId)!.question;
+    if (!studentAnswer[q.kind].safeParse(answer).success) {
+      return { refusal: new CourseError('invalid_question') };
+    }
+    await tx
       .update(assessmentItems)
       .set({
-        answer: parsed.data,
+        answer: studentAnswer[q.kind].parse(answer),
         answeredAt: now,
+        timeMs: Math.max(0, now.getTime() - s.current.shownAt.getTime()),
+      })
+      .where(and(eq(assessmentItems.id, itemId), isNull(assessmentItems.answeredAt)));
+    return { question: q };
+  });
+  if ('refusal' in reserved) throw reserved.refusal;
+  const question = reserved.question;
+
+  // The LLM call (short/open) stays outside the transaction.
+  let grade: Awaited<ReturnType<typeof gradeAnswer>>;
+  try {
+    grade = await gradeAnswer(
+      { llm, openPassThreshold: settings.openPassThreshold },
+      question,
+      answer,
+    );
+  } catch (err) {
+    // Not graded: give the question back rather than leave a reserved answer with no points.
+    await db
+      .update(assessmentItems)
+      .set({ answer: null, answeredAt: null, timeMs: null })
+      .where(and(eq(assessmentItems.id, itemId), isNull(assessmentItems.score)));
+    throw err;
+  }
+
+  await db.transaction(async (tx) => {
+    const [a] = await tx.select().from(assessments).where(eq(assessments.id, own.id)).for('update');
+    await tx
+      .update(assessmentItems)
+      .set({
         isCorrect: grade.isCorrect,
         score: grade.score,
         gradedBy: grade.gradedBy,
         graderRunId: grade.graderRunId ?? null,
-        timeMs: Math.max(0, now.getTime() - s.current.shownAt.getTime()),
       })
-      .where(and(eq(assessmentItems.id, itemId), isNull(assessmentItems.answeredAt)))
-      .returning({ id: assessmentItems.id });
-    if (!saved) throw new CourseError('already_answered');
+      .where(and(eq(assessmentItems.id, itemId), isNull(assessmentItems.score)));
     await logEvent(
       tx,
       actor.id,
       'question_answered',
       {
-        assessmentId: s.a.id,
+        assessmentId: own.id,
         kind: 'exam',
         questionId: question.id,
         skillId: question.skillId,
         isCorrect: grade.isCorrect,
         score: grade.score,
       },
-      s.a.courseVersionId,
+      own.courseVersionId,
     );
-    // The next question starts now; with none left the exam is graded.
-    const rows = await loadRows(tx, s.a.id);
-    const next = rows.find((r) => !r.item.answeredAt);
-    if (next) {
-      await tx
-        .update(assessmentItems)
-        .set({ shownAt: now })
-        .where(eq(assessmentItems.id, next.item.id));
-    } else {
-      await finishExam(tx, s.a, rows, settings, now);
+    // Questions the clock closed meanwhile are already answered; with none left the exam is graded.
+    const rows = await loadRows(tx, own.id);
+    if (a?.status === 'in_progress' && rows.every((r) => r.item.answeredAt)) {
+      await finishExam(tx, a, rows, settings, now);
     }
   });
   return getExam(db, actor, examId, settings, now);

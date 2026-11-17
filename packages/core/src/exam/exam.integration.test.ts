@@ -409,6 +409,42 @@ describe('server-side timers (F8-R3, P1)', () => {
     ).toBe('exam_time_expired');
   });
 
+  it('keeps an answer taken in time even when the page reloads past the deadline while it is graded', async () => {
+    const { student, versionId } = await setup();
+    const view = await startExam(db, student, versionId, settings, T0);
+    const current = view.current!;
+    await db
+      .update(questions)
+      .set({
+        kind: 'open',
+        options: null,
+        answerKey: { reference: 'Еталонна відповідь' },
+        rubric: 'Назвати головне',
+      })
+      .where(eq(questions.id, current.question.id));
+    // the open question has 5 minutes; the page reloads at 5:01 while the grader is still thinking
+    const slow = {
+      generate: async (req: Parameters<typeof llm.generate>[0]) => {
+        await getExam(db, student, view.id, settings, at(301));
+        return llm.generate(req);
+      },
+    } as LLMClient;
+    const next = await answerExam(
+      db,
+      slow,
+      student,
+      view.id,
+      current.itemId,
+      { text: 'Еталонна відповідь' },
+      settings,
+      at(299),
+    );
+    const [row] = await itemsOf(view.id);
+    expect(row!.answer).toEqual({ text: 'Еталонна відповідь' });
+    expect(row!.score).not.toBeNull();
+    expect(next.answered).toBeGreaterThanOrEqual(1);
+  });
+
   it('refuses answers to a question that is not the current one', async () => {
     const { student, versionId } = await setup();
     const view = await startExam(db, student, versionId, settings, T0);
