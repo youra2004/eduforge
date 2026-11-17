@@ -6,6 +6,7 @@ import {
   loadConfig,
 } from '@eduforge/core';
 import { createDb } from '@eduforge/db';
+import { registerAuditJobs } from './auditJobs';
 import { registerContentJobs } from './contentJobs';
 import { registerJobs } from './jobs';
 import { registerQuestionJobs } from './questionJobs';
@@ -28,6 +29,7 @@ await registerQuestionJobs(boss, {
   llm: createLLMClient(db),
   slip: config.bkt.slip,
 });
+await registerAuditJobs(boss, { db, llm: createLLMClient(db) });
 console.log('[worker] started');
 
 async function shutdown() {

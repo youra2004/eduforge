@@ -1,6 +1,7 @@
 export * from './config';
 export * from './time';
 export * from './auth';
+export * from './audit';
 export * from './courses';
 export * from './content';
 export * from './questions';

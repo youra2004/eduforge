@@ -30,7 +30,13 @@ export type CourseErrorCode =
   | 'consent_required'
   | 'invalid_survey'
   | 'tutor_rate_limited'
-  | 'tutor_budget_exceeded';
+  | 'tutor_budget_exceeded'
+  | 'audit_limit_reached'
+  | 'invalid_version_state'
+  | 'invalid_graph_edit'
+  | 'review_not_found'
+  | 'invalid_review'
+  | 'review_conflict';
 
 const httpStatus: Record<CourseErrorCode, number> = {
   invalid_course: 422,
@@ -63,6 +69,12 @@ const httpStatus: Record<CourseErrorCode, number> = {
   invalid_survey: 422,
   tutor_rate_limited: 429,
   tutor_budget_exceeded: 429,
+  audit_limit_reached: 409,
+  invalid_version_state: 409,
+  invalid_graph_edit: 422,
+  review_not_found: 404,
+  invalid_review: 422,
+  review_conflict: 409,
 };
 
 export class CourseError extends Error {

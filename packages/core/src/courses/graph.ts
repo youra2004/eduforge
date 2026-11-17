@@ -12,6 +12,7 @@ export type CourseIssueCode =
   | 'unreachable'
   | 'isolated'
   | 'node_without_skill'
+  | 'node_without_content'
   // content validation (F2-R3)
   | 'video_without_transcript'
   // question pool validation (F3-R6)
