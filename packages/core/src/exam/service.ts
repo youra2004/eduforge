@@ -716,7 +716,7 @@ export async function answerExam(
 
   await db.transaction(async (tx) => {
     const [a] = await tx.select().from(assessments).where(eq(assessments.id, own.id)).for('update');
-    await tx
+    const [graded] = await tx
       .update(assessmentItems)
       .set({
         isCorrect: grade.isCorrect,
@@ -724,7 +724,10 @@ export async function answerExam(
         gradedBy: grade.gradedBy,
         graderRunId: grade.graderRunId ?? null,
       })
-      .where(and(eq(assessmentItems.id, itemId), isNull(assessmentItems.score)));
+      .where(and(eq(assessmentItems.id, itemId), isNull(assessmentItems.score)))
+      .returning({ id: assessmentItems.id });
+    // A grade that came after the 120 s give-up changes nothing and is not logged as an answer.
+    if (!graded) return;
     await logEvent(
       tx,
       actor.id,
@@ -768,7 +771,7 @@ export async function interruptExam(
     const s = await settle(tx, own.id, settings, now);
     if (s.a.status !== 'in_progress') throw new CourseError('assessment_closed');
     // The last answer is in and being graded: the attempt is not interrupted, it is about to end.
-    if (s.grading) return;
+    if (!s.current && s.grading) return;
     const interruptions = s.a.interruptions + 1;
     const exceeded = interruptions > settings.maxInterruptions;
     const why = interruptReason.parse(reason);

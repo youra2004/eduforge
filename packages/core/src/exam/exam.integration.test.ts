@@ -487,6 +487,18 @@ describe('server-side timers (F8-R3, P1)', () => {
     expect(done.result!.scorePct).toBe(95);
   });
 
+  it('still interrupts while a mid-exam answer is being graded', async () => {
+    const { student, versionId } = await setup();
+    const view = await startExam(db, student, versionId, settings, T0);
+    const [first] = await itemsOf(view.id);
+    await db
+      .update(assessmentItems)
+      .set({ answer: { optionIndex: CORRECT }, answeredAt: at(5) })
+      .where(eq(assessmentItems.id, first!.id));
+    const stopped = await interruptExam(db, student, view.id, 'network', settings, at(10));
+    expect(stopped).toMatchObject({ status: 'interrupted', interruptions: 1 });
+  });
+
   it('refuses answers to a question that is not the current one', async () => {
     const { student, versionId } = await setup();
     const view = await startExam(db, student, versionId, settings, T0);
