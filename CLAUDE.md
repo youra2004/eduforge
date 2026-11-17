@@ -15,7 +15,7 @@ A simple change gets simple code. No extra abstractions, no features outside the
 - Never invent research results: use real logs or clearly labeled synthetic data.
 
 ## Done means verified
-"Done" means you ran it and saw it work in this session, not "should work". If you couldn't check something, say so plainly. Quote real output (pass counts, curl response).
+"Done" means you ran it and saw it work in this session, not "should work". If you couldn't check something, say so plainly. Quote real output (pass counts, curl response). PR must include screenshots if there is changes in PR
 
 ## Testing (keep it light, about 40% of the effort)
 - Unit tests only for core logic: BKT, graph validator, rating formula, pass rules, tutor scope filter, timers, certificate signing.
