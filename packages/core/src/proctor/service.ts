@@ -90,7 +90,7 @@ interface Draft {
 }
 
 export const draft = (
-  type: ServerEventType,
+  type: ServerEventType | 'camera_ready',
   payload: Record<string, unknown> = {},
   frame?: Buffer,
 ) => ({
@@ -128,6 +128,8 @@ export async function confirmInTx(
   settings: ProctorSettings,
   now: Date,
 ) {
+  // Two confirmations for one student at once must not both take the same step of the ladder.
+  await tx.select({ id: users.id }).from(users).where(eq(users.id, strike.userId)).for('update');
   const [standing] = await tx
     .select({ count: sql<number>`count(*)::int` })
     .from(strikes)
@@ -187,10 +189,15 @@ export async function appendEvents(
         source: d.source,
         type: d.type,
         severity: d.severity,
-        payload: d.frame ? { ...d.payload, frame: true } : d.payload,
+        payload: d.frame && settings.evidenceKey ? { ...d.payload, frame: true } : d.payload,
       })
       .returning({ id: proctorEvents.id });
-    if (d.frame) {
+    if (d.frame && !settings.evidenceKey) {
+      // Without a key the frame cannot be kept, but the event must not be lost with it.
+      console.error(
+        '[proctor] EVIDENCE_KEY is not set: the frame of a triggered event was not kept',
+      );
+    } else if (d.frame) {
       const stored = await storeEvidence(
         settings.storageDir,
         settings.evidenceKey,
@@ -211,16 +218,18 @@ export async function appendEvents(
  * that waits for an admin. Returns false when the attempt was no longer running (events after the end are dropped).
  */
 async function apply(
-  tx: Tx,
+  db: Db,
   assessmentId: string,
   drafts: Draft[],
   settings: ProctorSettings,
   now: Date,
 ) {
-  // Evidence files are written before the transaction commits; if it fails, no row would point to them.
+  // Evidence files are written before the transaction commits; if it fails (the commit included), no row would point to them.
   const files: string[] = [];
   try {
-    return await applyEvents(tx, assessmentId, drafts, settings, now, files);
+    return await db.transaction((tx) =>
+      applyEvents(tx, assessmentId, drafts, settings, now, files),
+    );
   } catch (err) {
     await removeEvidenceFiles(settings.storageDir, files);
     throw err;
@@ -240,7 +249,8 @@ async function applyEvents(
     .from(assessments)
     .where(eq(assessments.id, assessmentId))
     .for('update');
-  if (!a || a.status !== 'in_progress') return false;
+  // An exam past its deadline is over even if nobody has closed it yet: late events cannot annul it (P1).
+  if (!a || a.status !== 'in_progress' || (a.deadlineAt && now >= a.deadlineAt)) return false;
   const extra: Draft[] = [];
   if (drafts.some((d) => d.type === 'camera_ready')) {
     const [seen] = await tx
@@ -255,7 +265,7 @@ async function applyEvents(
 
   const violation = written.find((e) => e.severity === 'hard');
   const [existing] = await tx
-    .select({ id: strikes.id })
+    .select({ id: strikes.id, status: strikes.status, resolvedAt: strikes.resolvedAt })
     .from(strikes)
     .where(eq(strikes.assessmentId, a.id));
   if (violation) {
@@ -302,24 +312,33 @@ async function applyEvents(
   const all = await tx.select().from(proctorEvents).where(eq(proctorEvents.assessmentId, a.id));
   const risk = riskScore(all);
   await tx.update(assessments).set({ riskScore: risk }).where(eq(assessments.id, a.id));
-  if (risk >= settings.riskThreshold && !existing) {
+  // A flag the admin dismissed counts again only for what happened after the dismissal.
+  const since = existing?.status === 'dismissed' ? existing.resolvedAt : null;
+  const fresh = since ? riskScore(all.filter((e) => e.ts > since)) : risk;
+  if (fresh >= settings.riskThreshold && (!existing || existing.status === 'dismissed')) {
     const worst = all
-      .filter((e) => e.severity === 'soft')
+      .filter((e) => e.severity === 'soft' && (!since || e.ts > since))
       .sort((x, y) => (EVENT_KINDS[y.type]?.weight ?? 0) - (EVENT_KINDS[x.type]?.weight ?? 0))[0]!;
-    const [strike] = await tx
-      .insert(strikes)
-      .values({
-        userId: a.userId,
-        assessmentId: a.id,
-        reason: `risk:${worst.type}`,
-        status: 'pending_review',
-        createdAt: now,
-      })
-      .returning();
+    const [strike] = existing
+      ? await tx
+          .update(strikes)
+          .set({ reason: `risk:${worst.type}`, status: 'pending_review', resolvedAt: null })
+          .where(eq(strikes.id, existing.id))
+          .returning()
+      : await tx
+          .insert(strikes)
+          .values({
+            userId: a.userId,
+            assessmentId: a.id,
+            reason: `risk:${worst.type}`,
+            status: 'pending_review',
+            createdAt: now,
+          })
+          .returning();
     await appendEvents(
       tx,
       a,
-      [draft('strike_created', { strikeId: strike!.id, risk, auto: false })],
+      [draft('strike_created', { strikeId: strike!.id, risk: fresh, auto: false })],
       settings,
       now,
       files,
@@ -328,7 +347,7 @@ async function applyEvents(
       tx,
       a.userId,
       'strike_created',
-      { assessmentId: a.id, risk, auto: false },
+      { assessmentId: a.id, risk: fresh, auto: false },
       a.courseVersionId,
     );
   }
@@ -387,6 +406,16 @@ export async function reportEvents(
       continue;
     }
     if (!isBrowserEvent(e.type)) throw new CourseError('invalid_proctor_event');
+    if (e.type === 'camera_ready') {
+      // The reference photo is bound to the attempt by its hash only; the image itself is not kept (NFR-2).
+      const reference = decodeJpeg(String(payload.reference ?? ''));
+      drafts.push(
+        draft('camera_ready', {
+          referenceSha: createHash('sha256').update(reference).digest('hex'),
+        }),
+      );
+      continue;
+    }
     const awayMs =
       typeof payload.awayMs === 'number' ? Math.min(payload.awayMs, 3_600_000) : undefined;
     drafts.push({
@@ -396,10 +425,7 @@ export async function reportEvents(
       payload: awayMs === undefined ? {} : { awayMs },
     });
   }
-  const accepted =
-    drafts.length === 0
-      ? true
-      : await db.transaction((tx) => apply(tx, own.id, drafts, settings, now));
+  const accepted = drafts.length === 0 ? true : await apply(db, own.id, drafts, settings, now);
   return { accepted };
 }
 
@@ -442,17 +468,39 @@ export async function checkSnapshot(
   if (!parsed.success) throw new CourseError('invalid_proctor_event');
   const frame = decodeJpeg(parsed.data.frame);
   const reference = decodeJpeg(parsed.data.reference);
-  if (own.status !== 'in_progress') return { checked: false as const, reason: 'closed' as const };
-
-  // The server sets the pace, so a client that sends too often cannot run up the cost or flood the log.
-  const [last] = await db
-    .select({ ts: proctorEvents.ts })
-    .from(proctorEvents)
-    .where(and(eq(proctorEvents.assessmentId, own.id), eq(proctorEvents.source, 'frame')))
-    .orderBy(desc(proctorEvents.ts))
-    .limit(1);
-  if (last && now.getTime() - last.ts.getTime() < (settings.snapshotIntervalSeconds * 1000) / 2) {
-    return { checked: false as const, reason: 'too_soon' as const };
+  // Under the attempt's lock: still running, at the server's pace, and the reference is the one given at the gate.
+  // The slot is taken (an info event) before the slow check, so parallel requests cannot all pass (cost, flooding).
+  const gate = await db.transaction(async (tx) => {
+    const [a] = await tx.select().from(assessments).where(eq(assessments.id, own.id)).for('update');
+    if (!a || a.status !== 'in_progress' || (a.deadlineAt && now >= a.deadlineAt)) {
+      return { reason: 'closed' as const };
+    }
+    const [last] = await tx
+      .select({ ts: proctorEvents.ts })
+      .from(proctorEvents)
+      .where(and(eq(proctorEvents.assessmentId, own.id), eq(proctorEvents.source, 'frame')))
+      .orderBy(desc(proctorEvents.ts))
+      .limit(1);
+    if (last && now.getTime() - last.ts.getTime() < (settings.snapshotIntervalSeconds * 1000) / 2) {
+      return { reason: 'too_soon' as const };
+    }
+    const [ready] = await tx
+      .select({ payload: proctorEvents.payload })
+      .from(proctorEvents)
+      .where(and(eq(proctorEvents.assessmentId, own.id), eq(proctorEvents.type, 'camera_ready')))
+      .orderBy(desc(proctorEvents.ts))
+      .limit(1);
+    const wanted = (ready?.payload as { referenceSha?: string } | undefined)?.referenceSha;
+    await appendEvents(tx, a, [draft('snapshot_started')], settings, now, []);
+    return {
+      referenceOk: !!wanted && wanted === createHash('sha256').update(reference).digest('hex'),
+    };
+  });
+  if ('reason' in gate) return { checked: false as const, reason: gate.reason };
+  if (!gate.referenceOk) {
+    // A reference that is not the one from the gate: the face check would prove nothing, so it is flagged instead.
+    await apply(db, own.id, [draft('reference_changed')], settings, now);
+    return { checked: false as const, reason: 'reference_changed' as const };
   }
 
   // Only demo mode listens to the browser's scenario; a real provider never sees it.
@@ -481,7 +529,7 @@ export async function checkSnapshot(
   } catch (err) {
     // A failing service is a technical fault, not a violation (D-20).
     console.error('[proctor] frame check failed', err);
-    await db.transaction((tx) => apply(tx, own.id, [draft('snapshot_failed')], settings, now));
+    await apply(db, own.id, [draft('snapshot_failed')], settings, now);
     return { checked: false as const, reason: 'failed' as const };
   }
 
@@ -500,7 +548,7 @@ export async function checkSnapshot(
         ),
       )
     : [draft('snapshot_ok', { score: checks.face.score })];
-  await db.transaction((tx) => apply(tx, own.id, drafts, settings, now));
+  await apply(db, own.id, drafts, settings, now);
   return { checked: true as const, events: types };
 }
 

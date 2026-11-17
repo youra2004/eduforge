@@ -59,10 +59,21 @@ export async function listOwnStrikes(db: Db, user: AuthUser | null) {
   );
 }
 
-async function loadStrike(tx: Tx | Db, strikeId: string) {
-  const [row] = z.uuid().safeParse(strikeId).success
-    ? await tx.select().from(strikes).where(eq(strikes.id, strikeId)).for('update')
+/**
+ * Locks the attempt first and the strike second, the same order as the event path, so a decision and an incoming
+ * event for one attempt cannot deadlock.
+ */
+async function loadStrike(tx: Tx, strikeId: string) {
+  const [peek] = z.uuid().safeParse(strikeId).success
+    ? await tx.select().from(strikes).where(eq(strikes.id, strikeId))
     : [];
+  if (!peek) throw new CourseError('strike_not_found');
+  await tx
+    .select({ id: assessments.id })
+    .from(assessments)
+    .where(eq(assessments.id, peek.assessmentId))
+    .for('update');
+  const [row] = await tx.select().from(strikes).where(eq(strikes.id, strikeId)).for('update');
   if (!row) throw new CourseError('strike_not_found');
   return row;
 }

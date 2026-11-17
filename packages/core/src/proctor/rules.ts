@@ -27,6 +27,8 @@ export const BROWSER_EVENTS = {
   fullscreen_exit: hard('browser'),
   focus_lost: hard('browser'),
   devtools_open: hard('browser'),
+  // The docked-window size is only a guess (page zoom looks the same), so it is a soft signal; the keys are the hard one.
+  devtools_suspected: soft('browser', 25),
   copy: hard('browser'),
   paste: hard('browser'),
   face_missing: soft('browser', 15),
@@ -48,6 +50,8 @@ export const SERVER_EVENTS = {
   keystroke_too_fast: soft('keystroke', 20),
   keystroke_too_uniform: soft('keystroke', 20),
   reference_retaken: soft('server', 30),
+  reference_changed: soft('server', 40),
+  snapshot_started: info('frame'),
   snapshot_ok: info('frame'),
   snapshot_failed: info('frame'),
   attempt_stopped: info('server'),

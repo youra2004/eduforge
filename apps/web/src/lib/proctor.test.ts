@@ -63,6 +63,16 @@ describe('face signals', () => {
 });
 
 describe('keystroke recorder (D-24)', () => {
+  it('ignores auto-repeat and counts only text typed since the first key (a restored draft is not a paste)', () => {
+    const r = new KeystrokeRecorder();
+    r.startChars = 40; // the draft that came back after a reload
+    const key = { key: 'a', ctrlKey: false, metaKey: false, altKey: false };
+    r.key(key, 0);
+    r.key({ ...key, repeat: true }, 30);
+    r.key(key, 150);
+    expect(r.take(42)).toEqual({ intervalsMs: [150], corrections: 0, chars: 2, keys: 2 });
+  });
+
   it('keeps intervals and counts, not characters', () => {
     const r = new KeystrokeRecorder();
     r.key({ key: 'a', ctrlKey: false, metaKey: false, altKey: false }, 0);

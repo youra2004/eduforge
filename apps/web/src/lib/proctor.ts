@@ -49,7 +49,7 @@ export function isDesktop(win: Pick<Window, 'innerWidth' | 'matchMedia'>): boole
   return win.innerWidth >= 900 && !win.matchMedia('(pointer: coarse)').matches;
 }
 
-/** Docked devtools shrink the page next to the window; a heuristic, so the server weighs it as a hard event only with the rest of the log (F9-R2). */
+/** Docked devtools shrink the page next to the window, but so does page zoom: a guess, reported as a soft signal only. */
 export function devtoolsLikelyOpen(
   win: Pick<Window, 'outerWidth' | 'innerWidth' | 'outerHeight' | 'innerHeight'>,
 ) {
@@ -62,9 +62,14 @@ export class KeystrokeRecorder {
   private intervals: number[] = [];
   private corrections = 0;
   private keys = 0;
+  /** Length of the text before the first key of this answer, so a draft restored after a reload is not a paste. */
+  startChars: number | null = null;
 
-  key(e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'>, now = performance.now()) {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
+  key(
+    e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'> & { repeat?: boolean },
+    now = performance.now(),
+  ) {
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Backspace' || e.key === 'Delete') this.corrections++;
     else if (e.key.length === 1) this.keys++;
     else return;
@@ -77,9 +82,10 @@ export class KeystrokeRecorder {
     const out = {
       intervalsMs: this.intervals.slice(0, 5000),
       corrections: this.corrections,
-      chars,
+      chars: Math.max(0, chars - (this.startChars ?? 0)),
       keys: this.keys,
     };
+    this.startChars = null;
     this.last = null;
     this.intervals = [];
     this.corrections = 0;

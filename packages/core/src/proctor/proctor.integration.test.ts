@@ -146,7 +146,7 @@ async function running(student: AuthUser, versionId: string, now = T0) {
     db,
     student,
     view.id,
-    { events: [{ type: 'camera_ready' }] },
+    { events: [{ type: 'camera_ready', payload: { reference: REF } }] },
     settings.proctor,
     now,
   );
@@ -185,7 +185,7 @@ describe('consent and the camera gate (F9-R1, D-27)', () => {
       db,
       student,
       view.id,
-      { events: [{ type: 'camera_ready' }] },
+      { events: [{ type: 'camera_ready', payload: { reference: REF } }] },
       settings.proctor,
       at(2),
     );
@@ -456,7 +456,7 @@ describe('soft signals go to an admin (F9-R3)', () => {
       db,
       student,
       id,
-      { events: [{ type: 'camera_ready' }] },
+      { events: [{ type: 'camera_ready', payload: { reference: REF } }] },
       settings.proctor,
       at(50),
     );
@@ -531,6 +531,146 @@ describe('soft signals go to an admin (F9-R3)', () => {
     const own = (await events(id)).map((e) => e.id);
     expect(
       await db.select().from(proctorEvidence).where(inArray(proctorEvidence.eventId, own)),
+    ).toEqual([]);
+  });
+});
+
+describe('review round 1', () => {
+  it('a docked-devtools guess (zoom looks the same) is only soft; the keys are hard', async () => {
+    const { student, versionId } = await setup();
+    const id = await running(student, versionId);
+    await reportEvents(
+      db,
+      student,
+      id,
+      { events: [{ type: 'devtools_suspected' }] },
+      settings.proctor,
+      at(10),
+    );
+    expect(await strikeOf(id)).toBeUndefined();
+    expect((await db.select().from(assessments).where(eq(assessments.id, id)))[0]!.status).toBe(
+      'in_progress',
+    );
+  });
+
+  it('events after the exam deadline cannot annul it', async () => {
+    const { student, versionId } = await setup();
+    const id = await running(student, versionId);
+    const deadline = (await db.select().from(assessments).where(eq(assessments.id, id)))[0]!
+      .deadlineAt!;
+    const res = await reportEvents(
+      db,
+      student,
+      id,
+      { events: [{ type: 'fullscreen_exit' }] },
+      settings.proctor,
+      new Date(deadline.getTime() + 500),
+    );
+    expect(res.accepted).toBe(false);
+    expect(await strikeOf(id)).toBeUndefined();
+  });
+
+  it('a reference photo other than the one from the gate is flagged and not compared', async () => {
+    const { student, versionId } = await setup();
+    const id = await running(student, versionId);
+    const res = await checkSnapshot(
+      db,
+      new MockProctorProvider(),
+      student,
+      id,
+      { frame: jpeg('f'), reference: jpeg('somebody-else') },
+      settings.proctor,
+      at(60),
+    );
+    expect(res).toEqual({ checked: false, reason: 'reference_changed' });
+    expect((await events(id)).map((e) => e.type)).toContain('reference_changed');
+    const [a] = await db.select().from(assessments).where(eq(assessments.id, id));
+    expect(a!.riskScore).toBe(40);
+  });
+
+  it('parallel snapshot requests take one slot: one check, the rest are too soon', async () => {
+    const { student, versionId } = await setup();
+    const id = await running(student, versionId);
+    const p = new MockProctorProvider();
+    const results = await Promise.all(
+      [0, 1, 2, 3].map(() =>
+        checkSnapshot(
+          db,
+          p,
+          student,
+          id,
+          { frame: jpeg('g'), reference: REF },
+          settings.proctor,
+          at(60),
+        ),
+      ),
+    );
+    expect(results.filter((r) => r.checked)).toHaveLength(1);
+    expect(p.calls.filter((c) => c.method === 'visionCheck')).toHaveLength(1);
+  });
+
+  it('after the admin dismissed a flag, new evidence opens it again', async () => {
+    const { student, versionId } = await setup();
+    const id = await running(student, versionId);
+    await checkSnapshot(
+      db,
+      provider,
+      student,
+      id,
+      { frame: jpeg('h'), reference: REF, scenario: 'other_face' },
+      settings.proctor,
+      at(60),
+    );
+    const adminUser = await makeUser(['admin']);
+    const item = (await listStrikeQueue(db, adminUser)).find((q) => q.assessmentId === id)!;
+    await reviewSoftStrike(db, adminUser, item.id, 'dismiss', {}, settings.proctor, at(100));
+    // Old evidence alone does not reopen it...
+    await reportEvents(
+      db,
+      student,
+      id,
+      { events: [{ type: 'head_turn' }] },
+      settings.proctor,
+      at(110),
+    );
+    expect((await strikeOf(id))?.status).toBe('dismissed');
+    // ...what happens after the dismissal does.
+    await checkSnapshot(
+      db,
+      provider,
+      student,
+      id,
+      { frame: jpeg('i'), reference: REF, scenario: 'other_face' },
+      settings.proctor,
+      at(200),
+    );
+    expect(await strikeOf(id)).toMatchObject({ status: 'pending_review', resolvedAt: null });
+  });
+
+  it('without EVIDENCE_KEY the event is still recorded, only the frame is not kept', async () => {
+    const { student, versionId } = await setup();
+    const id = await running(student, versionId);
+    await checkSnapshot(
+      db,
+      provider,
+      student,
+      id,
+      { frame: jpeg('j'), reference: REF, scenario: 'phone' },
+      { ...settings.proctor, evidenceKey: undefined },
+      at(60),
+    );
+    const log = await events(id);
+    expect(log.find((e) => e.type === 'phone')?.payload).not.toHaveProperty('frame');
+    expect(
+      await db
+        .select()
+        .from(proctorEvidence)
+        .where(
+          inArray(
+            proctorEvidence.eventId,
+            log.map((e) => e.id),
+          ),
+        ),
     ).toEqual([]);
   });
 });

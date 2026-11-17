@@ -120,7 +120,12 @@ export function ExamProctor({
       }
       referenceRef.current = captureFrame(video);
       await document.documentElement.requestFullscreen();
-      if (!(await report([{ type: 'fullscreen_enter' }, { type: 'camera_ready' }]))) {
+      if (
+        !(await report([
+          { type: 'fullscreen_enter' },
+          { type: 'camera_ready', payload: { reference: referenceRef.current } },
+        ]))
+      ) {
         throw new Error('report');
       }
       setActive(true);
@@ -152,6 +157,7 @@ export function ExamProctor({
     if (!active || !running) return;
     let awayTimer: ReturnType<typeof setTimeout> | null = null;
     let awaySince = 0;
+    let suspected = false;
     const onFullscreen = () => {
       if (!document.fullscreenElement) void reportHard({ type: 'fullscreen_exit' });
     };
@@ -184,7 +190,11 @@ export function ExamProctor({
       }
     };
     const poll = setInterval(() => {
-      if (devtoolsLikelyOpen(window)) void reportHard({ type: 'devtools_open' });
+      if (devtoolsLikelyOpen(window) && !suspected) {
+        // Page zoom looks the same as docked devtools, so this is a soft signal, once.
+        suspected = true;
+        void report([{ type: 'devtools_suspected' }]);
+      }
     }, 1000);
     document.addEventListener('fullscreenchange', onFullscreen);
     window.addEventListener('blur', away);
@@ -206,7 +216,7 @@ export function ExamProctor({
       document.removeEventListener('paste', onPaste);
       document.removeEventListener('keydown', onKeys);
     };
-  }, [active, running, proctor.focusGraceSeconds, reportHard]);
+  }, [active, running, proctor.focusGraceSeconds, reportHard, report]);
 
   // The camera itself: if it stops, that is a technical interruption, not a violation (D-20).
   useEffect(() => {
@@ -295,7 +305,10 @@ export function ExamProctor({
     if (!active || !running) return;
     const rec = new KeystrokeRecorder();
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLTextAreaElement) rec.key(e);
+      if (e.target instanceof HTMLTextAreaElement) {
+        rec.startChars ??= e.target.value.length;
+        rec.key(e);
+      }
     };
     const flush = (e: Event) => {
       const area = (e.target as HTMLElement).querySelector('textarea');
