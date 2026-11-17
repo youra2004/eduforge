@@ -31,7 +31,7 @@ export interface GradingDeps {
 }
 
 /**
- * Compares answers regardless of case, spacing, apostrophe style and sentence punctuation at the ends.
+ * Compares answers regardless of case, spacing and apostrophe style, ignoring quotes and a closing `.,;:?` at the ends.
  * Symbols inside an answer stay (`-5`, `C++`, `50%` differ from `5`, `C`, `50`); what does not match goes to the LLM.
  */
 export function normalizeAnswer(s: string): string {
@@ -40,7 +40,7 @@ export function normalizeAnswer(s: string): string {
     .toLowerCase()
     .replace(/['’ʼ`´]/g, '')
     .replace(/\s+/g, ' ')
-    .replace(/^[\s.,;:!?"«»“”„]+|[\s.,;:!?"«»“”„]+$/g, '');
+    .replace(/^[\s"«»“”„]+|[\s.,;:?"«»“”„]+$/g, '');
 }
 
 export function gradeMcq(q: Pick<GradableQuestion, 'answerKey'>, optionIndex: number): Grade {

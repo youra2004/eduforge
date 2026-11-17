@@ -99,6 +99,9 @@ describe('graders', () => {
       ['50%', '50'],
       ['$100', '100'],
       ['O(n)', 'O n'],
+      ['.5', '5'],
+      ['5!', '5'],
+      ['.NET', 'net'],
     ] as const) {
       expect(normalizeAnswer(a)).not.toBe(normalizeAnswer(b));
     }

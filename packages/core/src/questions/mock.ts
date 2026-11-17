@@ -111,7 +111,7 @@ function mockValidate(req: LLMRequest) {
 
 const words = (s: string) =>
   normalizeAnswer(s)
-    .split(' ')
+    .split(/[^\p{L}\p{N}]+/u)
     .filter((w) => w.length > 3);
 
 function mockGrade(req: LLMRequest) {

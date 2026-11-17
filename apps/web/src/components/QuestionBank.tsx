@@ -315,11 +315,24 @@ function GenerateButton({ nodeId }: { nodeId: string }) {
     setBusy(true);
     setErrors([]);
     setMessage(null);
-    const failed = await send(`/api/nodes/${nodeId}/questions/generate`, 'POST', { pool });
+    const res = await fetch(`/api/nodes/${nodeId}/questions/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ pool }),
+    }).catch(() => null);
+    const data = (await res?.json().catch(() => null)) as
+      (ApiError & { alreadyQueued?: boolean }) | null;
     setBusy(false);
-    if (failed) return setErrors(failed);
+    if (!res?.ok) {
+      return setErrors([
+        data?.message ?? 'Немає зʼєднання з сервером.',
+        ...(data?.issues ?? []).map((i) => i.message),
+      ]);
+    }
     setMessage(
-      'Генерацію запущено. Оновіть сторінку за хвилину: нові питання зʼявляться в списку.',
+      data?.alreadyQueued
+        ? 'Генерація для цього пулу вже в черзі: повторний запит не потрібен.'
+        : 'Генерацію запущено. Оновіть сторінку за хвилину: нові питання зʼявляться в списку.',
     );
     router.refresh();
   }
