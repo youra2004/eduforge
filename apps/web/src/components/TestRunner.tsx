@@ -7,7 +7,8 @@ import { TutorChat } from './TutorChat';
 
 export interface AssessmentView {
   id: string;
-  nodeId: string;
+  kind: 'node_test' | 'exam' | 'pretest' | 'posttest' | 'delayed_posttest';
+  nodeId: string | null;
   versionId: string;
   status: 'in_progress' | 'passed' | 'failed' | 'submitted' | 'interrupted' | 'annulled';
   roundNo: number;
@@ -31,6 +32,12 @@ export interface AssessmentView {
 
 const pct = (p: number) => `${Math.round(p * 100)} %`;
 
+const studyTitles = {
+  pretest: 'Вхідний тест',
+  posttest: 'Підсумковий тест',
+  delayed_posttest: 'Відкладений тест',
+} as const;
+
 export function TestRunner({ initial, serverNow }: { initial: AssessmentView; serverNow: string }) {
   const [a, setA] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -52,6 +59,24 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
     if (res.ok && json?.assessment) setA(json.assessment);
     else setError(json?.message ?? 'Щось пішло не так. Спробуйте ще раз.');
     setBusy(false);
+  }
+
+  const study = a.kind in studyTitles ? studyTitles[a.kind as keyof typeof studyTitles] : null;
+  // Study tests measure, so they show no verdicts and no score, only that the answers are in.
+  if (study && a.status !== 'in_progress') {
+    return (
+      <div data-testid="study-test-done">
+        <h1>{study}: завершено</h1>
+        <p>
+          Дякуємо! Відповіді збережено. Результат не показується, щоб не впливати на дослідження.
+        </p>
+        <p>
+          <Link href="/experiment" data-testid="back-to-experiment">
+            Повернутися до дослідження
+          </Link>
+        </p>
+      </div>
+    );
   }
 
   if (a.result) {
@@ -101,7 +126,7 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
                 <details key={i.id} data-testid="remediation-item">
                   <summary>{i.question.promptMd}</summary>
                   <TutorChat
-                    nodeId={a.nodeId}
+                    nodeId={a.nodeId!}
                     questionId={i.question.id}
                     title="Репетитор: допомога з цим питанням"
                   />
@@ -139,10 +164,10 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
   const answered = a.items.filter((i) => i.answered).length;
   return (
     <div data-testid="test-runner">
-      <h1>Тест вузла</h1>
+      <h1>{study ?? 'Тест вузла'}</h1>
       <p className="muted" data-testid="progress">
-        Питання {answered + 1} з {a.items.length} · раунд {a.roundNo}, спроба {a.attemptNo} з{' '}
-        {a.attemptsPerRound}
+        Питання {answered + 1} з {a.items.length}
+        {!study && ` · раунд ${a.roundNo}, спроба ${a.attemptNo} з ${a.attemptsPerRound}`}
       </p>
       <QuestionForm
         key={current.id}

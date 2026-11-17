@@ -2,6 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   CourseError,
+  experimentContext,
+  experimentSettings,
+  getParticipation,
   getProgress,
   getVersionGraph,
   hasRole,
@@ -36,6 +39,13 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
       ? await poolIssues(getDb(), id, loadConfig().questions)
       : [];
 
+  // A study module (M07): the control condition has free navigation; enrolling follows the pre-test.
+  const study = await experimentContext(getDb(), user.id, id);
+  const studyStep = study
+    ? (await getParticipation(getDb(), user, experimentSettings()))?.modules.find(
+        (m) => m.versionId === id,
+      )?.step
+    : undefined;
   const layers = nodeLayers(graph);
   const progress =
     graph.version.status === 'published' ? await getProgress(getDb(), user, id) : null;
@@ -105,7 +115,22 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
           </ul>
         </details>
       )}
-      {graph.version.status === 'published' && !progress && <EnrollButton versionId={id} />}
+      {graph.version.status === 'published' && !progress && study && studyStep !== 'learning' && (
+        <p data-testid="study-module-note">
+          Це модуль дослідження. Почніть з вхідного тесту на сторінці{' '}
+          <Link href="/experiment">Дослідження</Link>.
+        </p>
+      )}
+      {graph.version.status === 'published' &&
+        !progress &&
+        (!study || studyStep === 'learning') && <EnrollButton versionId={id} />}
+      {progress && study?.condition === 'control' && (
+        <p className="hint" data-testid="free-navigation-note">
+          Вільний режим: усі вузли відкриті, порядок обираєте самі. Тестів вузлів і репетитора тут
+          немає. Коли закінчите, завершіть навчання на сторінці{' '}
+          <Link href="/experiment">Дослідження</Link>.
+        </p>
+      )}
       {progress && (
         <p className="hint graph-legend" data-testid="graph-legend">
           {(['available', 'in_progress', 'passed', 'cooldown', 'locked'] as const).map((s) => (

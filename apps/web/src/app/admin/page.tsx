@@ -1,4 +1,4 @@
-import { listUsers } from '@eduforge/core';
+import { EXPORT_TABLES, listUsers } from '@eduforge/core';
 import { RoleEditor } from '@/components/RoleEditor';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
@@ -31,6 +31,18 @@ export default async function AdminPage() {
           ))}
         </tbody>
       </table>
+      <h2>Експорт дослідження</h2>
+      <p className="hint">
+        CSV без email та імен: людей позначає лише код учасника. Для скриптів у{' '}
+        <code>analysis/</code>.
+      </p>
+      <ul data-testid="export-links">
+        {EXPORT_TABLES.map((t) => (
+          <li key={t}>
+            <a href={`/api/admin/experiment/export?table=${t}`}>{t}.csv</a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -19,6 +19,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               EduForge
             </Link>
             {user && <Link href="/courses">Курси</Link>}
+            {user && <Link href="/experiment">Дослідження</Link>}
             {user &&
               roles
                 .filter((r) => user.roles.includes(r))

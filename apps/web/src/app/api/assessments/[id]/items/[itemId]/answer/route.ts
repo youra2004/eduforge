@@ -1,4 +1,4 @@
-import { answerItem, createLLMClient, learningSettings } from '@eduforge/core';
+import { answerAssessment, createLLMClient, learningSettings } from '@eduforge/core';
 import { getCurrentUser, getDb, readCourseJson, route } from '@/lib/server';
 
 export const dynamic = 'force-dynamic';
@@ -9,7 +9,7 @@ export const POST = route(async (req: Request, { params }: Ctx) => {
   const { id, itemId } = await params;
   const body = (await readCourseJson(req)) as { answer?: unknown } | null;
   const db = getDb();
-  const result = await answerItem(
+  const result = await answerAssessment(
     db,
     createLLMClient(db),
     await getCurrentUser(),
