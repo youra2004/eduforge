@@ -37,7 +37,9 @@ const demo = JSON.parse(
   readFileSync(new URL('../../seed/demo-course.json', import.meta.url), 'utf8'),
 );
 const llm = new LLMClient(createQuestionMock(), new DrizzleLLMRunStore(db));
-const settings = examSettings(loadConfig({ DATABASE_URL: 'x' }));
+const base = examSettings(loadConfig({ DATABASE_URL: 'x' }));
+// The engine is tested without proctoring; the camera gate and consent have their own tests (proctor.integration.test.ts).
+const settings = { ...base, proctor: { ...base.proctor, enabled: false } };
 const T0 = new Date('2026-03-01T10:00:00Z');
 const at = (seconds: number) => new Date(T0.getTime() + seconds * 1000);
 const DAY = 24 * 60 * 60;

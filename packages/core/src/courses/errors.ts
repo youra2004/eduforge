@@ -42,7 +42,11 @@ export type CourseErrorCode =
   | 'exam_cooldown'
   | 'exam_passed'
   | 'exam_time_expired'
-  | 'exam_not_current';
+  | 'exam_not_current'
+  | 'camera_required'
+  | 'invalid_proctor_event'
+  | 'strike_not_found'
+  | 'invalid_strike_state';
 
 const httpStatus: Record<CourseErrorCode, number> = {
   invalid_course: 422,
@@ -87,6 +91,10 @@ const httpStatus: Record<CourseErrorCode, number> = {
   exam_passed: 409,
   exam_time_expired: 409,
   exam_not_current: 409,
+  camera_required: 409,
+  invalid_proctor_event: 422,
+  strike_not_found: 404,
+  invalid_strike_state: 409,
 };
 
 export class CourseError extends Error {

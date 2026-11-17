@@ -9,6 +9,7 @@ import { createDb } from '@eduforge/db';
 import { registerAuditJobs } from './auditJobs';
 import { registerContentJobs } from './contentJobs';
 import { registerJobs } from './jobs';
+import { registerProctorJobs } from './proctorJobs';
 import { registerQuestionJobs } from './questionJobs';
 
 const config = loadConfig();
@@ -30,6 +31,7 @@ await registerQuestionJobs(boss, {
   slip: config.bkt.slip,
 });
 await registerAuditJobs(boss, { db, llm: createLLMClient(db) });
+await registerProctorJobs(boss, { db, storageDir: config.storageDir });
 console.log('[worker] started');
 
 async function shutdown() {

@@ -9,3 +9,4 @@ export * from './learning';
 export * from './tutor';
 export * from './experiment';
 export * from './exam';
+export * from './proctor';
