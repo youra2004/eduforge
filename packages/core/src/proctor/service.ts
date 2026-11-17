@@ -129,7 +129,11 @@ export async function confirmInTx(
   now: Date,
 ) {
   // Two confirmations for one student at once must not both take the same step of the ladder.
-  await tx.select({ id: users.id }).from(users).where(eq(users.id, strike.userId)).for('update');
+  await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.id, strike.userId))
+    .for('no key update');
   const [standing] = await tx
     .select({ count: sql<number>`count(*)::int` })
     .from(strikes)

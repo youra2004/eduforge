@@ -272,3 +272,27 @@ test('a camera that goes away is a technical interruption: no strike, no ban', a
   );
   expect(strikes).toBe('0');
 });
+
+test('losing focus past the grace period is a hard event (it must survive the runner re-rendering)', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const { versionId } = await publishedCourse(browser);
+  const { page, email } = await studentWhoFinished(browser, versionId);
+  await startExam(page, versionId);
+  await passGate(page);
+  await expect(page.getByTestId('exam-progress')).toContainText('Питання 1 з 20');
+  // a short blur (under the 1 s grace of this run) is nothing; a long one is a violation
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(1500);
+  expect((await attemptOf(email)).status).toBe('in_progress');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect(page.getByTestId('exam-stopped')).toBeVisible();
+  await expect(page.getByTestId('exam-stopped-reason')).toContainText('втратило фокус');
+  const [strike] = await sql<{ reason: string; status: string }>(
+    'SELECT reason, status FROM strikes WHERE assessment_id = $1',
+    [(await attemptOf(email)).id],
+  );
+  expect(strike).toEqual({ reason: 'focus_lost', status: 'confirmed' });
+});

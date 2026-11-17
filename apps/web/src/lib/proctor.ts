@@ -69,10 +69,12 @@ export class KeystrokeRecorder {
     e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'> & { repeat?: boolean },
     now = performance.now(),
   ) {
-    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'Backspace' || e.key === 'Delete') this.corrections++;
     else if (e.key.length === 1) this.keys++;
     else return;
+    // A held key types characters (counted above) but its auto-repeat is not typing rhythm.
+    if (e.repeat) return;
     if (this.last !== null) this.intervals.push(Math.round(now - this.last));
     this.last = now;
   }
@@ -82,7 +84,8 @@ export class KeystrokeRecorder {
     const out = {
       intervalsMs: this.intervals.slice(0, 5000),
       corrections: this.corrections,
-      chars: Math.max(0, chars - (this.startChars ?? 0)),
+      // No key pressed in this answer: whatever text is there came back as a draft, not from typing.
+      chars: Math.max(0, chars - (this.startChars ?? chars)),
       keys: this.keys,
     };
     this.startChars = null;

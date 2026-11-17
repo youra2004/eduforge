@@ -70,11 +70,14 @@ describe('keystroke recorder (D-24)', () => {
     r.key(key, 0);
     r.key({ ...key, repeat: true }, 30);
     r.key(key, 150);
-    expect(r.take(42)).toEqual({ intervalsMs: [150], corrections: 0, chars: 2, keys: 2 });
+    expect(r.take(42)).toEqual({ intervalsMs: [150], corrections: 0, chars: 2, keys: 3 });
+    // No key at all: the text is a restored draft.
+    expect(new KeystrokeRecorder().take(300)).toMatchObject({ chars: 0, keys: 0 });
   });
 
   it('keeps intervals and counts, not characters', () => {
     const r = new KeystrokeRecorder();
+    r.startChars = 0;
     r.key({ key: 'a', ctrlKey: false, metaKey: false, altKey: false }, 0);
     r.key({ key: 'b', ctrlKey: false, metaKey: false, altKey: false }, 120);
     r.key({ key: 'Backspace', ctrlKey: false, metaKey: false, altKey: false }, 300);

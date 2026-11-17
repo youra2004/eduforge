@@ -49,6 +49,9 @@ export function ExamProctor({
   onChanged: () => void;
   onCameraLost: () => void;
 }) {
+  // The runner re-renders every 250 ms and passes new callbacks each time; the effects below must not restart on that.
+  const callbacks = useRef({ onChanged, onCameraLost });
+  callbacks.current = { onChanged, onCameraLost };
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const referenceRef = useRef<string | null>(null);
@@ -84,9 +87,9 @@ export function ExamProctor({
   const reportHard = useCallback(
     async (event: Report) => {
       await report([event]);
-      onChanged();
+      callbacks.current.onChanged();
     },
-    [report, onChanged],
+    [report],
   );
 
   const stopCamera = useCallback(() => {
@@ -225,11 +228,11 @@ export function ExamProctor({
     const lost = () => {
       stopCamera();
       setActive(false);
-      onCameraLost();
+      callbacks.current.onCameraLost();
     };
     tracks.forEach((t) => t.addEventListener('ended', lost));
     return () => tracks.forEach((t) => t.removeEventListener('ended', lost));
-  }, [active, running, onCameraLost, stopCamera]);
+  }, [active, running, stopCamera]);
 
   // MediaPipe, every 2-3 s, in the page only (F9-R4). Signals are reported once they repeat.
   useEffect(() => {
