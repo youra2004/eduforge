@@ -470,6 +470,15 @@ export async function answerItem(
 /** After the last answer: pass rule over the node's skills, node state, unlocking, completion (D-11). */
 async function finishNodeTest(tx: Tx, a: Assessment, settings: LearningSettings, now: Date) {
   const nodeId = a.nodeId!;
+  // Two tests of one student finishing together must not both miss each other's pass when they check
+  // the prerequisites of a shared dependent (READ COMMITTED): the enrollment row is the one lock they queue on.
+  await tx
+    .select({ id: enrollments.id })
+    .from(enrollments)
+    .where(
+      and(eq(enrollments.userId, a.userId), eq(enrollments.courseVersionId, a.courseVersionId)),
+    )
+    .for('update');
   const nodeSkillRows = await tx
     .select({ id: skills.id, name: skills.name })
     .from(nodeSkills)
@@ -599,6 +608,10 @@ async function unlockDependents(
 
 // ---------------------------------------------------------------- practice
 
+/** Questions of the student's running node tests: practice must not tell them whether an answer is right. */
+const inRunningTest = (userId: string) =>
+  sql`(SELECT ${assessmentItems.questionId} FROM ${assessmentItems} JOIN ${assessments} ON ${assessments.id} = ${assessmentItems.assessmentId} WHERE ${assessments.userId} = ${userId} AND ${assessments.status} = 'in_progress')`;
+
 /**
  * F5-R6: a free question from the node's pool. Same gate as the node itself; asking changes nothing.
  * The node test draws from the same pool, so practice shows whether an answer was right, never the key.
@@ -610,7 +623,8 @@ export async function getPracticeQuestion(
   exclude: string[] = [],
   rng: Rng = Math.random,
 ) {
-  await assertNodeAccess(db, student(user), nodeId);
+  const { actor } = await assertNodeAccess(db, student(user), nodeId);
+  const skip = exclude.filter((id) => z.uuid().safeParse(id).success);
   const rows = await db
     .select()
     .from(questions)
@@ -619,7 +633,8 @@ export async function getPracticeQuestion(
         eq(questions.nodeId, nodeId),
         eq(questions.pool, 'node'),
         eq(questions.status, 'validated'),
-        exclude.length ? notInArray(questions.id, exclude) : undefined,
+        skip.length ? notInArray(questions.id, skip) : undefined,
+        sql`${questions.id} NOT IN ${inRunningTest(actor.id)}`,
       ),
     );
   const q = rows[Math.floor(rng() * rows.length)];
@@ -647,6 +662,7 @@ export async function answerPractice(
             eq(questions.nodeId, nodeId),
             eq(questions.pool, 'node'),
             eq(questions.status, 'validated'),
+            sql`${questions.id} NOT IN ${inRunningTest(actor.id)}`,
           ),
         )
     : [];

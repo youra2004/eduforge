@@ -227,6 +227,40 @@ describe('enrollment and unlocking', () => {
     );
   });
 
+  it('two prerequisites finishing at the same moment still unlock their dependent', async () => {
+    const { student, versionId, node } = await setup();
+    await enroll(db, student, versionId);
+    for (const key of ['start', 'types', 'conditions']) {
+      await takeTest(student, node(key).id, { right: true, now: T0 });
+    }
+    // loops and functions run side by side; every answer but the last is given first
+    const runs = await Promise.all(
+      ['loops', 'functions'].map((key) => startNodeTest(db, student, node(key).id, settings, T0)),
+    );
+    for (const run of runs) {
+      for (const item of run.items.slice(0, -1)) {
+        await answerItem(db, llm, student, run.id, item.id, { optionIndex: CORRECT }, settings, T0);
+      }
+    }
+    const last = await Promise.all(
+      runs.map((run) =>
+        answerItem(
+          db,
+          llm,
+          student,
+          run.id,
+          run.items.at(-1)!.id,
+          { optionIndex: CORRECT },
+          settings,
+          T0,
+        ),
+      ),
+    );
+    expect(last.map((l) => l.assessment.status)).toEqual(['passed', 'passed']);
+    const progress = await getProgress(db, student, versionId, T0);
+    expect(progress!.find((p) => p.nodeId === node('collections').id)!.state).toBe('available');
+  });
+
   it('prerequisites are AND: collections needs both loops and functions', async () => {
     const { student, versionId, node } = await setup();
     await enroll(db, student, versionId);
@@ -434,6 +468,30 @@ describe('practice mode', () => {
       .from(eventLog)
       .where(and(eq(eventLog.userId, student.id), eq(eventLog.name, 'practice_answered')));
     expect(events).toHaveLength(2);
+  });
+
+  it("does not grade or offer a question of the student's running test (it would work as an answer key)", async () => {
+    const { student, versionId, node } = await setup();
+    await enroll(db, student, versionId);
+    const nodeId = node('start').id;
+    const running = await startNodeTest(db, student, nodeId, settings, T0);
+    const inTest = running.items[0]!.question.id;
+    expect(
+      await code(
+        answerPractice(db, llm, student, nodeId, inTest, { optionIndex: CORRECT }, settings),
+      ),
+    ).toBe('question_not_found');
+    const testIds = new Set(running.items.map((i) => i.question.id));
+    for (let i = 0; i < 20; i++) {
+      const q = await getPracticeQuestion(db, student, nodeId);
+      if (q) expect(testIds.has(q.id)).toBe(false);
+    }
+  });
+
+  it('ignores an exclude list that is not made of ids', async () => {
+    const { student, versionId, node } = await setup();
+    await enroll(db, student, versionId);
+    expect(await getPracticeQuestion(db, student, node('start').id, ['abc', ''])).not.toBeNull();
   });
 
   it('refuses a question from another node or from the exam pool', async () => {
