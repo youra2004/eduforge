@@ -5,7 +5,9 @@ import { PgBoss } from 'pg-boss';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createContentItem,
+  findStaleNodeIds,
   getVersionGraph,
+  indexNode,
   importCourse,
   saveVideo,
   type AuthUser,
@@ -68,9 +70,13 @@ describe('content jobs', () => {
     const { author, nodeIds } = await course();
     const [textNode, videoNode] = nodeIds as [string, string];
     const embedProvider = new MockEmbeddingProvider(1024);
+    const embedder = new EmbeddingClient(embedProvider, new DrizzleLLMRunStore(db));
+    // The sweep at start-up queues every stale node in the database, including ones other test files left
+    // behind; index those now so this test's own jobs are not stuck behind them.
+    for (const id of await findStaleNodeIds(db)) await indexNode(db, embedder, id);
     await registerContentJobs(boss, {
       db,
-      embedder: new EmbeddingClient(embedProvider, new DrizzleLLMRunStore(db)),
+      embedder,
       transcriber: new TranscriptionClient(
         new MockTranscriptionProvider(),
         new DrizzleLLMRunStore(db),
