@@ -6,13 +6,14 @@ import {
   nodes,
   nodeSkills,
   skills,
+  staticHints,
   users,
   type CourseVersion,
   type Db,
   roles as allRoles,
   type VersionStatus,
 } from '@eduforge/db';
-import { and, asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { AuthError, hasRole, requireRole, type AuthUser } from '../auth/guard';
 import { CourseError } from './errors';
@@ -85,6 +86,12 @@ export async function importCourse(db: Db, input: unknown, authorId: string) {
             position: n.position,
           })),
         ),
+      );
+      await insertAll(
+        data.nodes.flatMap((n) =>
+          n.hints.map((h) => ({ nodeId: nodeIds.get(n.key)!, level: h.level, text: h.text })),
+        ),
+        (rows) => tx.insert(staticHints).values(rows),
       );
       await insertAll(
         data.nodes.flatMap((n) =>
@@ -309,6 +316,19 @@ export async function createNewVersion(db: Db, user: AuthUser | null, sourceVers
           nodeId: nodeIds.get(e.nodeId)!,
         })),
       ),
+    );
+    const hintRows = oldNodeIds.length
+      ? await tx
+          .select()
+          .from(staticHints)
+          .where(and(inArray(staticHints.nodeId, oldNodeIds), isNull(staticHints.questionId)))
+      : [];
+    await insertAll(hintRows, (rows) =>
+      tx
+        .insert(staticHints)
+        .values(
+          rows.map((h) => ({ nodeId: nodeIds.get(h.nodeId)!, level: h.level, text: h.text })),
+        ),
     );
     await copyContent(tx, nodeIds);
     await copyQuestions(tx, nodeIds, skillIds);

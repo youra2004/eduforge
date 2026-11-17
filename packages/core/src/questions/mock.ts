@@ -134,13 +134,14 @@ function mockGrade(req: LLMRequest) {
   return { equivalent, reason: 'Mock: an accepted answer appears in the answer.' };
 }
 
+export const questionMockResponders = {
+  question_generation: mockGenerate,
+  question_validation: mockValidate,
+  open_grading: mockGrade,
+};
+
 /**
  * A deterministic stand-in for the LLM (P4): the generator builds questions from the theory's own sentences,
  * the validator accepts a key only if the theory contains it, the grader compares words. Used in tests and demo.
  */
-export const createQuestionMock = () =>
-  new MockLLMProvider({
-    question_generation: mockGenerate,
-    question_validation: mockValidate,
-    open_grading: mockGrade,
-  });
+export const createQuestionMock = () => new MockLLMProvider(questionMockResponders);

@@ -19,7 +19,11 @@ export type CourseErrorCode =
   | 'test_unavailable'
   | 'assessment_not_found'
   | 'assessment_closed'
-  | 'already_answered';
+  | 'already_answered'
+  | 'invalid_tutor_input'
+  | 'tutor_unavailable'
+  | 'tutor_rate_limited'
+  | 'tutor_budget_exceeded';
 
 const httpStatus: Record<CourseErrorCode, number> = {
   invalid_course: 422,
@@ -41,6 +45,10 @@ const httpStatus: Record<CourseErrorCode, number> = {
   assessment_not_found: 404,
   assessment_closed: 409,
   already_answered: 409,
+  invalid_tutor_input: 422,
+  tutor_unavailable: 409,
+  tutor_rate_limited: 429,
+  tutor_budget_exceeded: 429,
 };
 
 export class CourseError extends Error {
