@@ -352,7 +352,7 @@ export function ExamProctor({
         className={
           needsGate ? 'proctor-preview gate' : active ? 'proctor-preview live' : 'proctor-preview'
         }
-        hidden={!needsGate && !active}
+        hidden={!active}
       />
       {active && running && (
         <p className="proctor-badge" data-testid="proctor-active">

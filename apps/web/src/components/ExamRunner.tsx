@@ -327,9 +327,9 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
   if (!exam.current || gated) {
     return (
       <div data-testid="exam-runner">
+        <h1>Фінальний іспит</h1>
         {/* Same place in the tree as in the question view below, so the camera stream survives the gate. */}
         {proctorNode}
-        <h1>Фінальний іспит</h1>
         <p className="exam-timers" aria-live="off">
           <span>
             Усього залишилось: <strong data-testid="exam-total-timer">{clock(totalLeft)}</strong>
@@ -341,8 +341,8 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
   const questionLeft = Date.parse(exam.current.deadlineAt) - now;
   return (
     <div data-testid="exam-runner">
-      {proctorNode}
       <h1>Фінальний іспит</h1>
+      {proctorNode}
       <p className="muted" data-testid="exam-progress">
         Питання {exam.current.position} з {exam.total} · раунд {exam.roundNo}, спроба{' '}
         {exam.attemptNo}

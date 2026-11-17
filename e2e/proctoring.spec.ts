@@ -146,7 +146,7 @@ test('a hard event stops the attempt with a strike and a ban; the student appeal
   await admin.getByTestId('strikes-link').click();
   const item = admin.getByTestId('strike-case').filter({ hasText: email });
   await expect(item.getByTestId('appeal-text-view')).toContainText('системне сповіщення');
-  await admin.screenshot({ path: `${proof}/6-admin-appeal.png`, fullPage: true });
+  await item.screenshot({ path: `${proof}/6-admin-appeal.png` });
   await item.getByTestId('strike-overturn').click();
   await expect(admin.getByTestId('strike-case').filter({ hasText: email })).toHaveCount(0);
   const [user] = await sql<{ exam_ban_until: Date | null }>(
@@ -235,7 +235,7 @@ test('mock scenarios: a phone is only a soft signal; a second person goes to the
     )
     .toBe(true);
   await item.scrollIntoViewIfNeeded();
-  await admin.screenshot({ path: `${proof}/8-admin-queue-evidence.png`, fullPage: true });
+  await item.screenshot({ path: `${proof}/8-admin-queue-evidence.png` });
   await item.getByTestId('strike-confirm').click();
   await expect(admin.getByTestId('strike-case').filter({ hasText: two.email })).toHaveCount(0);
 
