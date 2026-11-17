@@ -1,0 +1,35 @@
+$ tsx --env-file-if-exists=../../.env scripts/create-admin.ts admin-1794931720@curl.local Admin
+
+$ GET exam status before finishing the nodes
+HTTP 200 {"status":{"versionId":"f75938f5-48f4-4e8a-96e6-60add4a0f929","title":"Основи Python","nodes":{"total":8,"passed":0},"ban":null,"passed":false,"runningId":null,"interrupted":null,"roundNo":1,"attemptNo":1,"attemptsPerRound":2,"attemptsLeft":2,"cooldownUntil":null,"maxInterruptions":2,"rules":{"questions":30,"minutes":60,"choiceSeconds":5,"openSeconds":300,"passPct":70},"canStart":false,"blockedBy":"exam_not_eligible"
+
+$ POST start exam while nodes are not all passed -> exam_not_eligible
+HTTP 409 {"error":"exam_not_eligible","message":"Іспит відкриється, коли ви пройдете всі вузли курсу.","issues":[]}
+
+$ POST start exam while banned -> exam_banned
+HTTP 403 {"error":"exam_banned","message":"Вам тимчасово закрито доступ до іспитів. Навчання залишається доступним.","issues":[]}
+
+$ POST start exam (rating 5 -> 30 questions)
+{'status': 'in_progress', 'total': 30, 'answered': 0, 'roundNo': 1, 'attemptNo': 1, 'deadlineAt': '2026-11-17T17:08:41.815Z', 'serverNow': '2026-11-17T16:08:41.815Z'}
+current: {'position': 1, 'deadlineAt': '2026-11-17T16:08:46.815Z'} keys of question: ['id', 'kind', 'options', 'promptMd']
+
+$ POST answer in time
+HTTP 200 
+
+$ wait 6 s (limit is 5 s), then answer question 2 -> must be rejected
+HTTP 409 {"error":"exam_time_expired","message":"Час на це питання вичерпано. Відповідь не прийнято.","issues":[]}
+
+$ GET /api/assessments/2a949e54-afb1-43e6-ada6-d1018eeb9689 (generic endpoint would list all questions) -> 404
+HTTP 404 {"error":"assessment_not_found","message":"Тест не знайдено.","issues":[]}
+
+$ tutor during the exam -> tutor_unavailable
+HTTP 409 {"error":"tutor_unavailable","message":"Репетитор недоступний, поки триває тест (на цьому або іншому вузлі). Завершіть розпочатий тест.","issues":[]}
+
+$ DB: item rows (first two) after the late answer
+ ord | score | is_correct |       answer       
+-----+-------+------------+--------------------
+   0 |     1 | t          | {"optionIndex": 1}
+   1 |     0 | f          | {"timedOut": true}
+   2 |       |            | 
+(3 rows)
+
