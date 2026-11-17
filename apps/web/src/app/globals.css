@@ -163,6 +163,7 @@ td label {
   color: var(--muted);
 }
 .graph-node-skills {
+  min-height: 1.2em;
   font-size: 0.75rem;
   color: var(--muted);
 }
@@ -465,4 +466,134 @@ select {
 .survey .likert-option {
   display: inline-flex;
   margin-right: 1.2rem;
+}
+
+/* M08: editor, audit, review, notifications */
+button.secondary {
+  background: none;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+button.link.danger,
+.danger {
+  color: var(--danger);
+}
+.editor-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+  margin-top: 16px;
+}
+@media (max-width: 900px) {
+  .editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.graph-editor .graph-canvas {
+  height: 520px;
+}
+.graph-editor h2,
+.audit h2 {
+  font-size: 1.1rem;
+}
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+  margin: 12px 0;
+}
+.editor-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.editor-list input {
+  width: calc(100% - 2rem);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+.audit {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 2px solid var(--line);
+}
+.score {
+  display: flex;
+  gap: 32px;
+  align-items: center;
+  padding: 16px;
+  margin: 12px 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+.rating-number {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+.rating-badge {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: #eef3ff;
+  color: var(--accent);
+  font-weight: 700;
+}
+.score dl,
+.feedback {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.score dt,
+.feedback dt {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.score dd,
+.feedback dd {
+  margin: 0;
+}
+.feedback {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 12px 0;
+}
+blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+.site-header .count {
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.75rem;
+}
+.notifications {
+  list-style: none;
+  padding: 0;
+}
+.notifications li {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.notifications li.unread {
+  background: #eef3ff;
+  font-weight: 600;
+}
+.score-rating {
+  white-space: nowrap;
+}
+.audit table {
+  margin-bottom: 16px;
 }

@@ -14,7 +14,8 @@ export const errorMessages: Record<AuthErrorCode | CourseErrorCode | 'internal',
   invalid_course: 'Курс містить помилки. Перегляньте список проблем.',
   slug_taken: 'Курс з таким slug уже існує.',
   version_locked: 'Цю версію курсу не можна змінювати. Створіть нову версію.',
-  version_not_published: 'Нову версію можна створити лише з опублікованої.',
+  version_not_published:
+    'Нову версію можна створити лише з опублікованої (або з тієї, де вичерпано аудити).',
   course_not_found: 'Курс не знайдено.',
   invalid_content: 'Матеріал містить помилки. Перегляньте список проблем.',
   content_not_found: 'Матеріал не знайдено.',
@@ -43,6 +44,13 @@ export const errorMessages: Record<AuthErrorCode | CourseErrorCode | 'internal',
   experiment_course_missing: 'Курс цього модуля ще не опубліковано.',
   consent_required: 'Для участі потрібна інформована згода.',
   invalid_survey: 'Відповідьте на всі запитання анкети.',
+  audit_limit_reached:
+    'Ліміт аудитів для цієї версії вичерпано. Створіть нову версію курсу (копію цієї).',
+  invalid_version_state: 'Ця дія недоступна в поточному стані версії курсу.',
+  invalid_graph_edit: 'Не вдалося змінити граф. Перегляньте список проблем.',
+  review_not_found: 'Перевірку не знайдено.',
+  invalid_review: 'Рішення експерта заповнено неповно. Перегляньте список проблем.',
+  review_conflict: 'Цю перевірку вже призначено або розглянуто.',
   internal: 'Щось пішло не так. Спробуйте ще раз.',
 };
 
@@ -78,3 +86,65 @@ export const nodeStateLabels = {
   passed: 'Пройдено',
   cooldown: 'Пауза',
 } as const;
+
+export const levelLabels: Record<string, string> = {
+  junior: 'Junior (початковий)',
+  middle: 'Middle (впевнена практика)',
+  senior: 'Senior (складні програми)',
+  expert: 'Expert (рівень творця технології)',
+};
+
+/** What the student sees next to the rating: the band the rating belongs to (D-07). */
+export function ratingBand(rating: number) {
+  return rating <= 3 ? 'junior' : rating <= 6 ? 'middle' : rating <= 9 ? 'senior' : 'expert';
+}
+
+export const failedStageLabels: Record<string, string> = {
+  structure: 'Курс не пройшов перевірку структури',
+  conformity: 'Матеріали не відповідають опису курсу',
+  skills: 'Деякі заявлені навички не покриті матеріалами',
+  technical:
+    'Аудит не вдалося завершити через технічну помилку. Запуск повернуто, спробуйте ще раз',
+};
+
+export const feedbackLabels = {
+  theoryDepth: 'Глибина теорії',
+  questionTrickiness: 'Складність питань',
+  edgeCases: 'Покриття крайніх випадків',
+} as const;
+
+export const checklistLabels = {
+  theory_accuracy: 'Теорія точна і не містить помилок',
+  expert_depth: 'Глибина відповідає рівню експерта',
+  questions_quality: 'Питання якісні та недвозначні',
+  skills_coverage: 'Усі заявлені навички справді розкриті',
+  edge_cases: 'Розглянуто складні та крайні випадки',
+} as const;
+
+export const reviewStatusLabels = {
+  assigned: 'Призначено експерта',
+  approved: 'Схвалено',
+  rejected: 'Відхилено',
+} as const;
+
+export function notificationText(type: string, p: Record<string, unknown>): string {
+  const title = String(p.title ?? '');
+  switch (type) {
+    case 'audit_finished':
+      return p.outcome === 'ready_to_publish'
+        ? `Аудит курсу «${title}» завершено: рейтинг ${p.rating}. Курс готовий до публікації.`
+        : `Аудит курсу «${title}» завершено: потрібні зміни.`;
+    case 'audit_failed':
+      return `Аудит курсу «${title}» не вдалося завершити. Запуск повернуто — спробуйте ще раз.`;
+    case 'expert_review_started':
+      return `Курс «${title}» — кандидат на найвищий рейтинг (10). Він на експертній перевірці.`;
+    case 'review_assigned':
+      return `Вам призначено перевірку курсу «${title}».`;
+    case 'review_decided':
+      return p.decision === 'approved'
+        ? `Експерт схвалив курс «${title}»: рейтинг 10. Курс готовий до публікації.`
+        : `Експерт відхилив рейтинг 10 для курсу «${title}». Перегляньте чек-лист і оберіть, що робити далі.`;
+    default:
+      return type;
+  }
+}

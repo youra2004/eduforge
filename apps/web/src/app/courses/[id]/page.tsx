@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   CourseError,
+  EDITABLE_STATUSES,
   experimentContext,
+  getAuditView,
   experimentSettings,
   getParticipation,
   getProgress,
@@ -14,8 +16,11 @@ import {
   poolIssues,
 } from '@eduforge/core';
 import { CourseGraph, type GraphNodeData } from '@/components/CourseGraph';
+import { AuditSection } from '@/components/AuditSection';
 import { EnrollButton } from '@/components/EnrollButton';
-import { nodeStateLabels, versionStatusLabels } from '@/lib/messages';
+import { GraphEditor } from '@/components/GraphEditor';
+import { VersionDetailsForm } from '@/components/VersionDetailsForm';
+import { levelLabels, nodeStateLabels, ratingBand, versionStatusLabels } from '@/lib/messages';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 import type { Node } from '@xyflow/react';
@@ -33,6 +38,11 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
     throw err;
   });
 
+  // The owner (or an admin) edits the course and runs its audit; the audit details are not for anyone else (F4-R7).
+  const owner = graph.course.authorId === user.id || hasRole(user, 'admin');
+  const editable = owner && EDITABLE_STATUSES.includes(graph.version.status);
+  const audit = owner ? await getAuditView(getDb(), user, id) : null;
+
   // Question pool shortages (F3-R6) are for those who can fill the pools, not for students.
   const pools =
     graph.course.authorId === user.id || hasRole(user, 'admin', 'expert')
@@ -46,6 +56,9 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
         (m) => m.versionId === id,
       )?.step
     : undefined;
+  // Issue messages name nodes by id; show their titles instead.
+  const withTitles = (message: string) =>
+    graph.nodes.reduce((m, n) => m.replaceAll(n.id, `«${n.title}»`), message);
   const layers = nodeLayers(graph);
   const progress =
     graph.version.status === 'published' ? await getProgress(getDb(), user, id) : null;
@@ -95,11 +108,17 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
         {versionStatusLabels[graph.version.status]} · {graph.nodes.length} вузлів ·{' '}
         {graph.skills.length} навичок
       </p>
+      {graph.version.rating !== null && (
+        <p className="rating-line" data-testid="course-rating">
+          <span className="rating-badge">{graph.version.rating}/10</span>{' '}
+          {levelLabels[ratingBand(graph.version.rating)]}
+        </p>
+      )}
       {graph.version.description && <p>{graph.version.description}</p>}
       {graph.issues.length > 0 && (
         <ul className="error" data-testid="graph-issues">
           {graph.issues.map((i, k) => (
-            <li key={k}>{i.message}</li>
+            <li key={k}>{withTitles(i.message)}</li>
           ))}
         </ul>
       )}
@@ -141,10 +160,33 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
           · пройдено {progress.filter((p) => p.state === 'passed').length} з {progress.length}
         </p>
       )}
-      <CourseGraph
-        nodes={flowNodes}
-        edges={graph.edges.map((e) => ({ id: `${e.from}-${e.to}`, source: e.from, target: e.to }))}
-      />
+      {editable ? (
+        <GraphEditor
+          versionId={id}
+          flowNodes={flowNodes}
+          nodes={graph.nodes}
+          edges={graph.edges}
+          skills={graph.skills}
+        />
+      ) : (
+        <CourseGraph
+          nodes={flowNodes}
+          edges={graph.edges.map((e) => ({
+            id: `${e.from}-${e.to}`,
+            source: e.from,
+            target: e.to,
+          }))}
+        />
+      )}
+      {editable && (
+        <VersionDetailsForm
+          versionId={id}
+          title={graph.version.title}
+          description={graph.version.description}
+          declaredLevel={graph.version.declaredLevel}
+        />
+      )}
+      {audit && <AuditSection view={audit} />}
       {!progress && (
         <p className="hint">
           Стани вузлів умовні: прогрес зʼявиться після запису на опублікований курс.

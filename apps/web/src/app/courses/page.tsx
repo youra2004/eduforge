@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { listCourseVersions } from '@eduforge/core';
-import { versionStatusLabels } from '@/lib/messages';
+import { levelLabels, ratingBand, versionStatusLabels } from '@/lib/messages';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 
@@ -20,6 +20,7 @@ export default async function CoursesPage() {
             <tr>
               <th>Назва</th>
               <th>Версія</th>
+              <th>Рейтинг</th>
               <th>Статус</th>
               <th>Автор</th>
             </tr>
@@ -31,6 +32,18 @@ export default async function CoursesPage() {
                   <Link href={`/courses/${v.versionId}`}>{v.title}</Link>
                 </td>
                 <td>v{v.versionNo}</td>
+                <td data-testid="catalog-rating">
+                  {v.rating === null ? (
+                    <span className="muted">—</span>
+                  ) : (
+                    <>
+                      <span className="rating-badge">{v.rating}/10</span>{' '}
+                      <span className="muted">
+                        {levelLabels[ratingBand(v.rating)]?.split(' ')[0]}
+                      </span>
+                    </>
+                  )}
+                </td>
                 <td>{versionStatusLabels[v.status]}</td>
                 <td>{v.authorName}</td>
               </tr>
