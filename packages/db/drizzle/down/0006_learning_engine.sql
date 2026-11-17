@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS "event_log";
+DROP TABLE IF EXISTS "mastery_history";
+DROP TABLE IF EXISTS "assessment_items";
+DROP TABLE IF EXISTS "assessments";
+DROP TABLE IF EXISTS "skill_mastery";
+DROP TABLE IF EXISTS "node_progress";
+DROP TABLE IF EXISTS "enrollments";
+DROP TYPE IF EXISTS "assessment_status";
+DROP TYPE IF EXISTS "assessment_kind";
+DROP TYPE IF EXISTS "node_state";

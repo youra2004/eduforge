@@ -1,6 +1,8 @@
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
+  bigint,
+  bigserial,
   boolean,
   check,
   index,
@@ -15,6 +17,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   vector,
 } from 'drizzle-orm/pg-core';
@@ -389,3 +392,187 @@ export const staticHints = pgTable(
 
 export type Question = typeof questions.$inferSelect;
 export type NewQuestion = typeof questions.$inferInsert;
+
+// Learning engine (DATA_MODEL.md section 7, F5). `node_progress` rows are created when a student enrolls.
+export const enrollmentStatuses = ['active', 'completed'] as const;
+export type EnrollmentStatus = (typeof enrollmentStatuses)[number];
+
+export const enrollments = pgTable(
+  'enrollments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    courseVersionId: uuid('course_version_id')
+      .notNull()
+      .references(() => courseVersions.id),
+    status: text('status').$type<EnrollmentStatus>().notNull().default('active'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (t) => [unique('enrollments_user_version_unique').on(t.userId, t.courseVersionId)],
+);
+
+export const nodeStates = ['locked', 'available', 'in_progress', 'passed', 'cooldown'] as const;
+export type NodeState = (typeof nodeStates)[number];
+export const nodeState = pgEnum('node_state', nodeStates);
+
+export const nodeProgress = pgTable(
+  'node_progress',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => nodes.id),
+    state: nodeState('state').notNull(),
+    roundNo: integer('round_no').notNull().default(1),
+    attemptsInRound: integer('attempts_in_round').notNull().default(0),
+    cooldownUntil: timestamp('cooldown_until', { withTimezone: true }),
+    passedAt: timestamp('passed_at', { withTimezone: true }),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.nodeId] })],
+);
+
+export const skillMastery = pgTable(
+  'skill_mastery',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id),
+    pKnown: real('p_known').notNull(),
+    nObs: integer('n_obs').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.skillId] })],
+);
+
+export const assessmentKinds = [
+  'node_test',
+  'exam',
+  'pretest',
+  'posttest',
+  'delayed_posttest',
+] as const;
+export type AssessmentKind = (typeof assessmentKinds)[number];
+export const assessmentKind = pgEnum('assessment_kind', assessmentKinds);
+
+export const assessmentStatuses = [
+  'in_progress',
+  'submitted',
+  'passed',
+  'failed',
+  'interrupted',
+  'annulled',
+] as const;
+export type AssessmentStatus = (typeof assessmentStatuses)[number];
+export const assessmentStatus = pgEnum('assessment_status', assessmentStatuses);
+
+export const assessments = pgTable(
+  'assessments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: assessmentKind('kind').notNull(),
+    courseVersionId: uuid('course_version_id')
+      .notNull()
+      .references(() => courseVersions.id),
+    nodeId: uuid('node_id').references(() => nodes.id),
+    roundNo: integer('round_no').notNull().default(1),
+    attemptNo: integer('attempt_no').notNull().default(1),
+    status: assessmentStatus('status').notNull().default('in_progress'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    // Node tests have no timer; the exam (M09) sets it.
+    deadlineAt: timestamp('deadline_at', { withTimezone: true }),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    scorePct: real('score_pct'),
+    perSkill: jsonb('per_skill').$type<{ skillId: string; name: string; pKnown: number }[]>(),
+    interruptions: integer('interruptions').notNull().default(0),
+    riskScore: real('risk_score').notNull().default(0),
+    questionSetSeed: bigint('question_set_seed', { mode: 'number' }).notNull(),
+    meta: jsonb('meta').notNull().default({}),
+  },
+  (t) => [
+    index('assessments_user_node_idx').on(t.userId, t.nodeId, t.status),
+    // One unfinished node test per student and node, so a double click cannot start two.
+    uniqueIndex('assessments_node_test_in_progress_unique')
+      .on(t.userId, t.nodeId)
+      .where(sql`${t.kind} = 'node_test' AND ${t.status} = 'in_progress'`),
+  ],
+);
+
+export const assessmentItems = pgTable(
+  'assessment_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assessmentId: uuid('assessment_id')
+      .notNull()
+      .references(() => assessments.id),
+    questionId: uuid('question_id')
+      .notNull()
+      .references(() => questions.id),
+    ord: integer('ord').notNull(),
+    shownAt: timestamp('shown_at', { withTimezone: true }),
+    answeredAt: timestamp('answered_at', { withTimezone: true }),
+    answer: jsonb('answer'),
+    isCorrect: boolean('is_correct'),
+    score: real('score'),
+    gradedBy: text('graded_by').$type<'auto' | 'llm'>(),
+    graderRunId: uuid('grader_run_id').references(() => llmRuns.id),
+    timeMs: integer('time_ms'),
+    hintsUsed: integer('hints_used').notNull().default(0),
+  },
+  (t) => [
+    unique('assessment_items_assessment_ord_unique').on(t.assessmentId, t.ord),
+    index('assessment_items_question_idx').on(t.questionId),
+  ],
+);
+
+// Append-only: one row per change of p_known (F5-R7, P5).
+export const masteryHistory = pgTable(
+  'mastery_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id),
+    assessmentItemId: uuid('assessment_item_id')
+      .notNull()
+      .references(() => assessmentItems.id),
+    pBefore: real('p_before').notNull(),
+    pAfter: real('p_after').notNull(),
+    at: timestamp('at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('mastery_history_user_skill_idx').on(t.userId, t.skillId, t.at)],
+);
+
+// Append-only research log (P5, RESEARCH.md).
+export const eventLog = pgTable(
+  'event_log',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
+    userId: uuid('user_id').references(() => users.id),
+    sessionKey: text('session_key'),
+    name: text('name').notNull(),
+    props: jsonb('props').notNull().default({}),
+  },
+  (t) => [
+    index('event_log_user_ts_idx').on(t.userId, t.ts),
+    index('event_log_name_idx').on(t.name),
+  ],
+);
+
+export type Assessment = typeof assessments.$inferSelect;
+export type AssessmentItem = typeof assessmentItems.$inferSelect;
+export type NodeProgress = typeof nodeProgress.$inferSelect;
