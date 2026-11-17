@@ -634,3 +634,52 @@ blockquote {
 .level.needs_work {
   color: #b42318;
 }
+
+.proctor-preview {
+  width: 240px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  transform: scaleX(-1);
+}
+.proctor-preview.live {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: 160px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.proctor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #0a7a3d;
+  margin: 0 0 8px;
+}
+.proctor-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0a7a3d;
+}
+.proctor-gate ul {
+  display: grid;
+  gap: 6px;
+}
+.cases {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 16px;
+}
+.case {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+.case blockquote {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--line);
+}

@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sendJson } from '@/lib/client';
 import { examSkillLevelLabels } from '@/lib/messages';
+import { ExamProctor, type ProctorView } from './ExamProctor';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
+import { StrikeAppeal } from './StrikeAppeal';
 
 export interface ExamViewData {
   id: string;
@@ -28,6 +30,16 @@ export interface ExamViewData {
     draft: { optionIndex?: number; text?: string } | null;
   } | null;
   canResume: boolean;
+  proctor: ProctorView;
+  violation: {
+    strikeId: string;
+    reason: string;
+    status: string;
+    level: number;
+    banUntil: string | null;
+    forever: boolean;
+    canAppeal: boolean;
+  } | null;
   result: {
     passed: boolean;
     scorePct: number | null;
@@ -46,6 +58,14 @@ export interface ExamViewData {
 
 /** A connection drop shorter than this is not reported as an interruption. */
 const MIN_DROP_MS = 10_000;
+
+const violationText: Record<string, string> = {
+  fullscreen_exit: 'Ви вийшли з повноекранного режиму.',
+  focus_lost: 'Вікно іспиту втратило фокус довше за дозволений час.',
+  devtools_open: 'Виявлено спробу відкрити інструменти розробника.',
+  copy: 'Виявлено копіювання.',
+  paste: 'Виявлено вставлення.',
+};
 
 const clock = (ms: number) => {
   const s = Math.max(0, Math.ceil(ms / 1000));
@@ -69,6 +89,9 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
   const [offline, setOffline] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshing = useRef(false);
+  // The camera gate is passed in this page (a reload asks for it again).
+  const [proctorActive, setProctorActive] = useState(false);
+  const [confirmInterrupt, setConfirmInterrupt] = useState(false);
 
   const apply = useCallback((next: ExamViewData) => {
     received.current = { server: Date.parse(next.serverNow), local: Date.now() };
@@ -199,6 +222,37 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
     );
   }
 
+  if (exam.status === 'annulled') {
+    const v = exam.violation;
+    return (
+      <div data-testid="exam-stopped">
+        <h1>Іспит зупинено</h1>
+        <p className="error" data-testid="exam-stopped-reason">
+          {v
+            ? (violationText[v.reason] ?? 'Зафіксовано порушення правил іспиту.')
+            : 'Спробу анульовано.'}
+        </p>
+        {v && (
+          <p data-testid="exam-strike">
+            Порушення №{v.level}.{' '}
+            {v.forever
+              ? 'Доступ до іспитів закрито назавжди; навчання залишається доступним.'
+              : v.banUntil
+                ? `Доступ до іспитів закрито до ${new Date(v.banUntil).toLocaleString('uk-UA')}; навчання залишається доступним.`
+                : ''}
+          </p>
+        )}
+        {v?.canAppeal && <StrikeAppeal strikeId={v.strikeId} onDone={() => router.refresh()} />}
+        {v && v.status === 'appealed' && (
+          <p data-testid="exam-appealed">Апеляцію подано, її розгляне адміністратор.</p>
+        )}
+        <p>
+          <Link href={`/courses/${exam.versionId}`}>До графа курсу</Link>
+        </p>
+      </div>
+    );
+  }
+
   if (exam.result) {
     const r = exam.result;
     return (
@@ -254,12 +308,40 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
     );
   }
 
-  if (!exam.current) return <p>Завершення…</p>;
+  // With proctoring on, no question is shown until the camera gate is passed in this page (F9-R1).
+  // The proctor stays mounted through the gate and the wait for the first question, or the camera stream would be lost.
+  const gated = exam.proctor.enabled && !proctorActive;
+  if (!exam.current && !exam.proctor.enabled) return <p>Завершення…</p>;
   const now = serverNow();
   const totalLeft = exam.deadlineAt ? Date.parse(exam.deadlineAt) - now : 0;
+  const proctorNode = exam.proctor.enabled && (
+    <ExamProctor
+      examId={exam.id}
+      proctor={exam.proctor}
+      running={exam.status === 'in_progress'}
+      onActive={setProctorActive}
+      onChanged={() => void reload()}
+      onCameraLost={() => void interrupt('camera')}
+    />
+  );
+  if (!exam.current || gated) {
+    return (
+      <div data-testid="exam-runner">
+        {/* Same place in the tree as in the question view below, so the camera stream survives the gate. */}
+        {proctorNode}
+        <h1>Фінальний іспит</h1>
+        <p className="exam-timers" aria-live="off">
+          <span>
+            Усього залишилось: <strong data-testid="exam-total-timer">{clock(totalLeft)}</strong>
+          </span>
+        </p>
+      </div>
+    );
+  }
   const questionLeft = Date.parse(exam.current.deadlineAt) - now;
   return (
     <div data-testid="exam-runner">
+      {proctorNode}
       <h1>Фінальний іспит</h1>
       <p className="muted" data-testid="exam-progress">
         Питання {exam.current.position} з {exam.total} · раунд {exam.roundNo}, спроба{' '}
@@ -299,22 +381,34 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
         </p>
       )}
       <p className="hint">Повертатися до попередніх питань не можна.</p>
-      <button
-        type="button"
-        className="secondary"
-        disabled={busy}
-        data-testid="exam-interrupt"
-        onClick={() => {
-          if (
-            window.confirm(
-              `Повідомити про технічну проблему? Перерв за спробу не більше ${exam.maxInterruptions}; питання після відновлення будуть інші.`,
-            )
-          )
-            void interrupt('other');
-        }}
-      >
-        Технічна проблема
-      </button>
+      {/* Not window.confirm: a native dialog takes the page out of fullscreen, which would count as a violation. */}
+      {confirmInterrupt ? (
+        <p data-testid="exam-interrupt-ask">
+          Повідомити про технічну проблему? Перерв за спробу не більше {exam.maxInterruptions};
+          питання після відновлення будуть інші.{' '}
+          <button
+            type="button"
+            disabled={busy}
+            data-testid="exam-interrupt-confirm"
+            onClick={() => void interrupt('other')}
+          >
+            Так, перервати
+          </button>{' '}
+          <button type="button" className="secondary" onClick={() => setConfirmInterrupt(false)}>
+            Скасувати
+          </button>
+        </p>
+      ) : (
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy}
+          data-testid="exam-interrupt"
+          onClick={() => setConfirmInterrupt(true)}
+        >
+          Технічна проблема
+        </button>
+      )}
     </div>
   );
 }
