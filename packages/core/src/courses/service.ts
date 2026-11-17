@@ -186,7 +186,7 @@ export async function loadVersion(db: Db | Tx, user: AuthUser | null, versionId:
 export async function listCourseVersions(db: Db, caller: AuthUser | null) {
   const user = viewer(caller);
   const all = hasRole(user, 'admin', 'expert');
-  return db
+  const rows = await db
     .select({
       versionId: courseVersions.id,
       courseId: courses.id,
@@ -196,7 +196,6 @@ export async function listCourseVersions(db: Db, caller: AuthUser | null) {
       declaredLevel: courseVersions.declaredLevel,
       status: courseVersions.status,
       rating: courseVersions.rating,
-      aiLevel: courseVersions.aiLevel,
       auditAttempts: courseVersions.auditAttempts,
       authorId: courses.authorId,
       authorName: users.displayName,
@@ -208,6 +207,20 @@ export async function listCourseVersions(db: Db, caller: AuthUser | null) {
       all ? undefined : or(eq(courseVersions.status, 'published'), eq(courses.authorId, user.id)),
     )
     .orderBy(asc(courses.slug), desc(courseVersions.versionNo));
+  const seen = new Set<string>();
+  return rows
+    .filter((r) => {
+      // A student's catalog offers the newest published version of a course; earlier ones stay for those already on them (D-06).
+      if (all || r.authorId === user.id || r.status !== 'published') return true;
+      if (seen.has(r.courseId)) return false;
+      seen.add(r.courseId);
+      return true;
+    })
+    .map((r) => ({
+      ...r,
+      // How many audit runs were used is the author's business.
+      auditAttempts: r.authorId === user.id || hasRole(user, 'admin') ? r.auditAttempts : null,
+    }));
 }
 
 /** A version's skills, nodes (with skill ids) and edges, without any access check. */
@@ -237,6 +250,26 @@ export async function loadGraph(db: Db | Tx, versionId: string) {
   };
 }
 
+/**
+ * The version as every viewer may see it. The audit's internals (hardness, volume cap, summary, run count) stay out:
+ * the author gets them from `getAuditView`, an expert from `getReview` (F4-R7, D-09b).
+ */
+export function presentVersion(v: CourseVersion) {
+  return {
+    id: v.id,
+    courseId: v.courseId,
+    versionNo: v.versionNo,
+    parentVersionId: v.parentVersionId,
+    title: v.title,
+    description: v.description,
+    declaredLevel: v.declaredLevel,
+    status: v.status,
+    rating: v.rating,
+    createdAt: v.createdAt,
+    publishedAt: v.publishedAt,
+  };
+}
+
 /** One version with its skills, nodes (with skill ids), edges and the current validation issues. */
 export async function getVersionGraph(db: Db, user: AuthUser | null, versionId: string) {
   const { version, course } = await loadVersion(db, user, versionId);
@@ -247,7 +280,7 @@ export async function getVersionGraph(db: Db, user: AuthUser | null, versionId: 
   ];
   return {
     course: { id: course.id, slug: course.slug, authorId: course.authorId },
-    version,
+    version: presentVersion(version),
     skills: skillList,
     nodes: graphNodes,
     edges,
@@ -288,7 +321,7 @@ export async function updateVersion(
     .where(and(eq(courseVersions.id, versionId), inArray(courseVersions.status, EDITABLE_STATUSES)))
     .returning();
   if (!row) throw new CourseError('version_locked');
-  return row;
+  return presentVersion(row);
 }
 
 /**

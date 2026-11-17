@@ -1,14 +1,25 @@
-import type { Db } from '@eduforge/db';
+import { courseVersions, type Db } from '@eduforge/db';
+import { lt } from 'drizzle-orm';
 import { z } from 'zod';
 import { AuthError, type AuthUser } from '../auth/guard';
 import { CourseError } from '../courses/errors';
 import { canEdit, loadVersion } from '../courses/service';
 import { rejectedReview } from './review';
 import { TOP_RATING } from './rating';
+import { auditSettings } from './pipeline';
 import { moveVersion } from './transitions';
 
 /** What the author gets when an expert rejects a candidate for 10: the cap, one step below the top (F4-R6). */
 export const FALLBACK_RATING = TOP_RATING - 1;
+
+/** The result of an audit that no longer describes the course. */
+const clearedAudit = {
+  rating: null,
+  aiLevel: null,
+  aiHardness: null,
+  volumeCap: null,
+  auditSummary: null,
+};
 
 async function ownVersion(db: Db, user: AuthUser | null, versionId: string) {
   const { version, course, user: actor } = await loadVersion(db, user, versionId);
@@ -35,13 +46,15 @@ export async function publishVersion(db: Db, user: AuthUser | null, versionId: s
  */
 export async function reopenVersion(db: Db, user: AuthUser | null, versionId: string) {
   await ownVersion(db, user, versionId);
-  const row = await moveVersion(db, versionId, 'ready_to_publish', 'draft', {
-    rating: null,
-    aiLevel: null,
-    aiHardness: null,
-    volumeCap: null,
-    auditSummary: null,
-  });
+  // With no audit run left a draft could never be audited again, so the finished rating must not be thrown away.
+  const row = await moveVersion(
+    db,
+    versionId,
+    'ready_to_publish',
+    'draft',
+    clearedAudit,
+    lt(courseVersions.auditAttempts, auditSettings().maxAttempts),
+  );
   if (!row) throw new CourseError('invalid_version_state');
   return row;
 }
@@ -73,7 +86,14 @@ export async function resolveRejection(
   }
   const row =
     choice.data === 'improve'
-      ? await moveVersion(db, versionId, 'expert_review', 'changes_requested')
+      ? await moveVersion(
+          db,
+          versionId,
+          'expert_review',
+          'changes_requested',
+          clearedAudit,
+          lt(courseVersions.auditAttempts, auditSettings().maxAttempts),
+        )
       : await moveVersion(db, versionId, 'expert_review', 'published', {
           rating: FALLBACK_RATING,
           publishedAt: new Date(),

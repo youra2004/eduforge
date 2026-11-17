@@ -134,7 +134,8 @@ async function record(
     .values({ courseVersionId: versionId, attemptNo, stage, status, result })
     .onConflictDoUpdate({
       target: [auditRuns.courseVersionId, auditRuns.attemptNo, auditRuns.stage],
-      set: { status, result, createdAt: new Date() },
+      // The database's clock, like the review's `created_at`: a review is tied to its attempt by comparing the two.
+      set: { status, result, createdAt: sql`now()` },
     });
 }
 

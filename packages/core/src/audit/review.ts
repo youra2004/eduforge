@@ -294,11 +294,13 @@ export async function decideReview(
 
   return db.transaction(async (tx) => {
     const [locked] = await tx
-      .select({ status: expertReviews.status })
+      .select({ status: expertReviews.status, expertId: expertReviews.expertId })
       .from(expertReviews)
       .where(eq(expertReviews.id, reviewId))
       .for('update');
-    if (locked?.status !== 'assigned') throw new CourseError('review_conflict');
+    // Re-checked under the lock: an admin may have moved the review to another expert since it was read.
+    if (locked?.expertId !== expert.id) throw new CourseError('review_not_found');
+    if (locked.status !== 'assigned') throw new CourseError('review_conflict');
 
     if (checked.decision === 'approved') {
       const moved = await moveVersion(tx, row.version.id, 'expert_review', 'ready_to_publish', {

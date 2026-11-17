@@ -18,7 +18,13 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { AuthError, type AuthUser } from '../auth/guard';
 import { CourseError } from '../courses/errors';
 import { editGraph } from '../courses/editor';
-import { createNewVersion, getVersionGraph, importCourse, updateVersion } from '../courses/service';
+import {
+  createNewVersion,
+  getVersionGraph,
+  importCourse,
+  listCourseVersions,
+  updateVersion,
+} from '../courses/service';
 import { auditMockResponders } from './mock';
 import { listNotifications, markAllRead, unreadCount } from './notifications';
 import {
@@ -595,5 +601,119 @@ describe('notifications', () => {
     expect(
       (await db.select().from(notifications).where(eq(notifications.userId, author.id)))[0]!.readAt,
     ).not.toBeNull();
+  });
+});
+
+describe('what the version endpoints show (F4-R7, D-09b)', () => {
+  const HIDDEN = ['volumeCap', 'aiHardness', 'aiLevel', 'auditSummary', 'auditAttempts'];
+
+  it('keeps the audit internals out of the graph, the update and the catalog', async () => {
+    const author = await makeUser(['author']);
+    const versionId = await draft('good', author);
+    await auditOnce(versionId, author, { ...settings, rating: DEFAULT_RATING_CONFIG });
+    const student = await makeUser(['student']);
+    await publishVersion(db, author, versionId);
+
+    for (const viewer of [author, student]) {
+      const g = await getVersionGraph(db, viewer, versionId);
+      expect(g.version.rating).toBe(3);
+      for (const key of HIDDEN) expect(g.version).not.toHaveProperty(key);
+    }
+    const [mine] = (await listCourseVersions(db, author)).filter((v) => v.versionId === versionId);
+    expect(mine?.auditAttempts).toBe(1);
+    const [seen] = (await listCourseVersions(db, student)).filter((v) => v.versionId === versionId);
+    expect(seen).toMatchObject({ rating: 3, auditAttempts: null });
+    expect(seen).not.toHaveProperty('aiLevel');
+  });
+
+  it('offers a student only the newest published version of a course', async () => {
+    const author = await makeUser(['author']);
+    const v1 = await draft('good', author);
+    await auditOnce(v1, author);
+    await publishVersion(db, author, v1);
+    const v2 = (await createNewVersion(db, author, v1, 5)).versionId;
+    await auditOnce(v2, author);
+    await publishVersion(db, author, v2);
+    const student = await makeUser(['student']);
+    const ids = (await listCourseVersions(db, student)).map((v) => v.versionId);
+    expect(ids).toContain(v2);
+    expect(ids).not.toContain(v1);
+    // the author still sees both, and v1 itself stays published for the students on it
+    const own = (await listCourseVersions(db, author)).map((v) => v.versionId);
+    expect(own).toEqual(expect.arrayContaining([v1, v2]));
+    expect((await statusOf(v1)).status).toBe('published');
+  });
+});
+
+describe('the last audit run is not thrown away', () => {
+  it('refuses to reopen a ready version when no run is left', async () => {
+    const author = await makeUser(['author']);
+    const versionId = await draft('good', author);
+    await auditOnce(versionId, author);
+    await db
+      .update(courseVersions)
+      .set({ auditAttempts: 5 })
+      .where(eq(courseVersions.id, versionId));
+    expect(await codeOf(reopenVersion(db, author, versionId))).toBe('invalid_version_state');
+    expect(await statusOf(versionId)).toMatchObject({ status: 'ready_to_publish', rating: 5 });
+    expect((await publishVersion(db, author, versionId)).status).toBe('published');
+  });
+
+  it('keeps "publish with 9" open when no run is left, and clears the stale result when improving', async () => {
+    const tenSettings: AuditSettings = {
+      ...settings,
+      rating: { ...DEFAULT_RATING_CONFIG, volumeCaps: [] },
+    };
+    const long = '\n\nДодатковий розділ про змінні, цикли та функції з прикладами. '.repeat(70);
+    const reject = async (versionId: string) => {
+      const admin = await makeUser(['admin']);
+      const expert = await makeUser(['expert']);
+      const { reviewId } = await assignExpert(db, admin, { versionId, expertId: expert.id });
+      const items = Object.fromEntries(CHECKLIST_ITEMS.map((k) => [k, false]));
+      await decideReview(db, expert, reviewId, { decision: 'rejected', items, comment: 'Замало.' });
+    };
+
+    const author = await makeUser(['author']);
+    const spent = await draft('good', author, long);
+    // four runs are used: the audit below is the fifth
+    await db.update(courseVersions).set({ auditAttempts: 4 }).where(eq(courseVersions.id, spent));
+    await auditOnce(spent, author, tenSettings);
+    await reject(spent);
+    expect(await codeOf(resolveRejection(db, author, spent, { choice: 'improve' }))).toBe(
+      'invalid_version_state',
+    );
+    expect((await resolveRejection(db, author, spent, { choice: 'publish_9' })).rating).toBe(9);
+
+    const other = await draft('good', author, long);
+    await auditOnce(other, author, tenSettings);
+    await reject(other);
+    await resolveRejection(db, author, other, { choice: 'improve' });
+    expect(await statusOf(other)).toMatchObject({
+      status: 'changes_requested',
+      aiLevel: null,
+      aiHardness: null,
+      volumeCap: null,
+      auditSummary: null,
+    });
+  });
+
+  it('an expert who was moved off a review cannot decide it any more', async () => {
+    const tenSettings: AuditSettings = {
+      ...settings,
+      rating: { ...DEFAULT_RATING_CONFIG, volumeCaps: [] },
+    };
+    const long = '\n\nДодатковий розділ про змінні, цикли та функції з прикладами. '.repeat(70);
+    const author = await makeUser(['author']);
+    const versionId = await draft('good', author, long);
+    await auditOnce(versionId, author, tenSettings);
+    const admin = await makeUser(['admin']);
+    const [x, y] = [await makeUser(['expert']), await makeUser(['expert'])];
+    const { reviewId } = await assignExpert(db, admin, { versionId, expertId: x!.id });
+    await assignExpert(db, admin, { versionId, expertId: y!.id });
+    const items = Object.fromEntries(CHECKLIST_ITEMS.map((k) => [k, true]));
+    expect(await codeOf(decideReview(db, x!, reviewId, { decision: 'approved', items }))).toBe(
+      'review_not_found',
+    );
+    expect((await statusOf(versionId)).status).toBe('expert_review');
   });
 });

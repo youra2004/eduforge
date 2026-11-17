@@ -85,12 +85,14 @@ export function AuditActions({
       {status === 'ready_to_publish' && (
         <>
           {button('publish', 'Опублікувати', 'publish')}
-          {button('reopen', 'Повернутися до редагування', 'reopen', 'secondary')}
+          {attemptsLeft > 0 &&
+            button('reopen', 'Повернутися до редагування', 'reopen', 'secondary')}
         </>
       )}
       {awaitingChoice && (
         <>
-          {button('improve', 'Продовжити покращення курсу', 'choose-improve', 'secondary')}
+          {attemptsLeft > 0 &&
+            button('improve', 'Продовжити покращення курсу', 'choose-improve', 'secondary')}
           {button('publish_9', 'Опублікувати з рейтингом 9', 'choose-publish-9')}
         </>
       )}
