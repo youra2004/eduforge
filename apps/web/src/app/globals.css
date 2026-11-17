@@ -378,3 +378,37 @@ select {
 .legend-chip.locked {
   background: #eef0f3;
 }
+
+.tutor {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9fafc;
+}
+.tutor h3 {
+  margin-top: 0;
+}
+.tutor-messages {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.tutor-messages li {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--line);
+}
+.tutor-messages li.tutor {
+  border-color: var(--accent);
+}
+.tutor-messages p {
+  margin: 4px 0 0;
+}
+.tutor .actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}

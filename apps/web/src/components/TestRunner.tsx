@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
+import { TutorChat } from './TutorChat';
 
 export interface AssessmentView {
   id: string;
@@ -87,6 +88,27 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
             </li>
           ))}
         </ol>
+        {!r.passed && a.items.some((i) => !i.isCorrect) && (
+          <>
+            <h2>Розбір помилок</h2>
+            <p className="hint">
+              Оберіть питання, з яким не вдалося впоратись, і попросіть підказку. Правильні
+              відповіді не показуються.
+            </p>
+            {a.items
+              .filter((i) => !i.isCorrect)
+              .map((i) => (
+                <details key={i.id} data-testid="remediation-item">
+                  <summary>{i.question.promptMd}</summary>
+                  <TutorChat
+                    nodeId={a.nodeId}
+                    questionId={i.question.id}
+                    title="Репетитор: допомога з цим питанням"
+                  />
+                </details>
+              ))}
+          </>
+        )}
         {r.passed && (
           <p data-testid="next-step">Наступні вузли, для яких пройдено всі попередні, відкрито.</p>
         )}

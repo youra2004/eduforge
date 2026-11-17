@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
+import { TutorChat } from './TutorChat';
 
 export interface NodeLearningProps {
   nodeId: string;
@@ -37,6 +38,7 @@ export function NodeLearning(p: NodeLearningProps) {
   const [question, setQuestion] = useState<StudentQuestion | null>(null);
   const [verdict, setVerdict] = useState<boolean | null>(null);
   const [shown, setShown] = useState<string[]>([]);
+  const [given, setGiven] = useState<string | undefined>();
 
   async function startTest() {
     setBusy(true);
@@ -55,6 +57,7 @@ export function NodeLearning(p: NodeLearningProps) {
   async function nextPractice(exclude = shown) {
     setError(null);
     setVerdict(null);
+    setGiven(undefined);
     const { data, error } = await call<{ question: StudentQuestion | null }>(
       `/api/nodes/${p.nodeId}/practice?exclude=${exclude.join(',')}`,
     );
@@ -75,8 +78,11 @@ export function NodeLearning(p: NodeLearningProps) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ questionId: question!.id, answer }),
     });
-    if (data) setVerdict(data.isCorrect);
-    else setError(error!);
+    if (data) {
+      setVerdict(data.isCorrect);
+      const a = answer as { optionIndex?: number; text?: string };
+      setGiven(a.text ?? question!.options?.[a.optionIndex ?? -1]);
+    } else setError(error!);
     setBusy(false);
   }
 
@@ -140,6 +146,14 @@ export function NodeLearning(p: NodeLearningProps) {
               </button>
             </p>
           )}
+          {verdict === false && (
+            <TutorChat
+              nodeId={p.nodeId}
+              questionId={question.id}
+              studentAnswer={given}
+              title="Репетитор: допомога з цим питанням"
+            />
+          )}
         </>
       ) : (
         <button type="button" onClick={() => nextPractice()} data-testid="start-practice">
@@ -151,6 +165,7 @@ export function NodeLearning(p: NodeLearningProps) {
           {error}
         </p>
       )}
+      {p.state !== 'locked' && <TutorChat nodeId={p.nodeId} />}
     </section>
   );
 }
