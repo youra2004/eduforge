@@ -672,3 +672,88 @@ export const experimentAssignments = pgTable(
 
 export type ExperimentParticipant = typeof experimentParticipants.$inferSelect;
 export type ExperimentAssignment = typeof experimentAssignments.$inferSelect;
+
+// Audit, expert review and notifications (DATA_MODEL.md section 9, F4).
+export const auditStages = ['structure', 'volume', 'conformity', 'skills', 'scoring'] as const;
+export type AuditStage = (typeof auditStages)[number];
+
+/** One row per stage of one audit attempt; `result` is the aggregate, the raw N runs live in `llm_runs`. */
+export const auditRuns = pgTable(
+  'audit_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    courseVersionId: uuid('course_version_id')
+      .notNull()
+      .references(() => courseVersions.id),
+    attemptNo: integer('attempt_no').notNull(),
+    stage: text('stage').$type<AuditStage>().notNull(),
+    status: text('status').$type<'passed' | 'failed'>().notNull(),
+    result: jsonb('result').notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('audit_runs_version_attempt_stage_unique').on(t.courseVersionId, t.attemptNo, t.stage),
+    check(
+      'audit_runs_stage_check',
+      sql`${t.stage} IN ('structure', 'volume', 'conformity', 'skills', 'scoring')`,
+    ),
+    check('audit_runs_status_check', sql`${t.status} IN ('passed', 'failed')`),
+  ],
+);
+
+export const reviewStatuses = ['assigned', 'approved', 'rejected'] as const;
+export type ReviewStatus = (typeof reviewStatuses)[number];
+export const reviewStatus = pgEnum('review_status', reviewStatuses);
+
+export interface ReviewChecklist {
+  items: Record<string, boolean>;
+  comment: string;
+}
+
+// The simulated expert review of a rating-10 candidate (D-10). An admin assigns it; the expert decides.
+export const expertReviews = pgTable(
+  'expert_reviews',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    courseVersionId: uuid('course_version_id')
+      .notNull()
+      .references(() => courseVersions.id),
+    expertId: uuid('expert_id')
+      .notNull()
+      .references(() => users.id),
+    assignedBy: uuid('assigned_by')
+      .notNull()
+      .references(() => users.id),
+    status: reviewStatus('status').notNull().default('assigned'),
+    checklist: jsonb('checklist').$type<ReviewChecklist>(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('expert_reviews_version_idx').on(t.courseVersionId, t.createdAt),
+    index('expert_reviews_expert_idx').on(t.expertId, t.status),
+    // One open review per version, so a double click cannot assign two experts.
+    uniqueIndex('expert_reviews_assigned_unique')
+      .on(t.courseVersionId)
+      .where(sql`${t.status} = 'assigned'`),
+  ],
+);
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('notifications_user_idx').on(t.userId, t.createdAt)],
+);
+
+export type AuditRun = typeof auditRuns.$inferSelect;
+export type ExpertReview = typeof expertReviews.$inferSelect;
+export type Notification = typeof notifications.$inferSelect;

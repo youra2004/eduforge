@@ -8,7 +8,7 @@ import { getVersionGraph, importCourse } from '../src/courses';
 
 // Usage: pnpm seed-experiment <author email>
 // Imports and publishes the two study topics (slugs from EXPERIMENT_COURSE_A/B) with demo content and questions.
-// Publishing here stands in for M08 (audit and publication), which does not exist yet.
+// Publishing here skips the audit (M08): the study topics are fixed material, not audited courses.
 const [email] = process.argv.slice(2);
 if (!email) {
   console.error('Usage: pnpm seed-experiment <author email>');

@@ -1,11 +1,13 @@
 import { PgBoss } from 'pg-boss';
 import {
+  AUDIT_QUEUE,
   GENERATE_QUESTIONS_QUEUE,
   INDEX_NODE_QUEUE,
   loadConfig,
   needsTranscription,
   TRANSCRIBE_QUEUE,
   VALIDATE_QUESTION_QUEUE,
+  type AuditJob,
   type GenerateQuestionsJob,
   type IndexNodeJob,
   type TranscribeJob,
@@ -77,5 +79,18 @@ export async function queueValidateQuestion(questionId: string) {
     });
   } catch (err) {
     console.error('[web] could not queue validation; the worker will pick it up later', err);
+  }
+}
+
+/** Asks the worker to run an audit. The version is already `auditing`; if the queue is down the worker picks it up when it starts. */
+export async function queueAudit(job: AuditJob) {
+  try {
+    const boss = await getBoss();
+    await boss.send(AUDIT_QUEUE, job, { singletonKey: `${job.versionId}:${job.attemptNo}` });
+  } catch (err) {
+    console.error(
+      '[web] could not queue the audit; the worker will pick it up when it starts',
+      err,
+    );
   }
 }
