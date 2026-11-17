@@ -1,8 +1,14 @@
 import { PgBoss } from 'pg-boss';
-import { createEmbeddingClient, createTranscriptionClient, loadConfig } from '@eduforge/core';
+import {
+  createEmbeddingClient,
+  createLLMClient,
+  createTranscriptionClient,
+  loadConfig,
+} from '@eduforge/core';
 import { createDb } from '@eduforge/db';
 import { registerContentJobs } from './contentJobs';
 import { registerJobs } from './jobs';
+import { registerQuestionJobs } from './questionJobs';
 
 const config = loadConfig();
 const { db, pool } = createDb(config.databaseUrl);
@@ -16,6 +22,11 @@ await registerContentJobs(boss, {
   embedder: createEmbeddingClient(db, config),
   transcriber: createTranscriptionClient(db, config),
   storageDir: config.storageDir,
+});
+await registerQuestionJobs(boss, {
+  db,
+  llm: createLLMClient(db),
+  slip: config.bkt.slip,
 });
 console.log('[worker] started');
 

@@ -320,3 +320,72 @@ export const contentChunks = pgTable(
 
 export type ContentItem = typeof contentItems.$inferSelect;
 export type ContentChunk = typeof contentChunks.$inferSelect;
+
+// Question bank (DATA_MODEL.md section 6, F3). Pools never overlap: a question lives in exactly one (D-17).
+export const questionKinds = ['mcq', 'short', 'open'] as const;
+export type QuestionKind = (typeof questionKinds)[number];
+export const questionKind = pgEnum('question_kind', questionKinds);
+
+export const questionPools = ['node', 'exam', 'assessment'] as const;
+export type QuestionPool = (typeof questionPools)[number];
+export const questionPool = pgEnum('question_pool', questionPools);
+
+export const questionStatuses = ['generated', 'validated', 'rejected', 'retired'] as const;
+export type QuestionStatus = (typeof questionStatuses)[number];
+export const questionStatus = pgEnum('question_status', questionStatuses);
+
+export const questions = pgTable(
+  'questions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => nodes.id),
+    skillId: uuid('skill_id')
+      .notNull()
+      .references(() => skills.id),
+    pool: questionPool('pool').notNull(),
+    kind: questionKind('kind').notNull(),
+    promptMd: text('prompt_md').notNull(),
+    options: jsonb('options').$type<string[]>(),
+    // mcq: {optionIndex}; short: {accepted: string[]}; open: {reference}. Never shown to students or the tutor (P6).
+    answerKey: jsonb('answer_key').notNull(),
+    rubric: text('rubric'),
+    difficulty: real('difficulty').notNull().default(0.5),
+    guess: real('guess').notNull(),
+    slip: real('slip').notNull().default(0.1),
+    status: questionStatus('status').notNull().default('generated'),
+    rejectionReason: text('rejection_reason'),
+    // Bumped on every edit, so a validation that started before the edit cannot validate the new text.
+    revision: integer('revision').notNull().default(0),
+    generatorRunId: uuid('generator_run_id').references(() => llmRuns.id),
+    validatorRunId: uuid('validator_run_id').references(() => llmRuns.id),
+    createdBy: uuid('created_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('questions_node_pool_idx').on(t.nodeId, t.pool, t.status),
+    index('questions_skill_idx').on(t.skillId),
+    check('questions_guess_range', sql`${t.guess} BETWEEN 0 AND 1`),
+    check('questions_slip_range', sql`${t.slip} BETWEEN 0 AND 1`),
+    check('questions_difficulty_range', sql`${t.difficulty} BETWEEN 0 AND 1`),
+  ],
+);
+
+// The author's fixed hints for the tutor's fallback (F1-R4); the tutor reads them in M06.
+export const staticHints = pgTable(
+  'static_hints',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    nodeId: uuid('node_id')
+      .notNull()
+      .references(() => nodes.id),
+    questionId: uuid('question_id').references(() => questions.id, { onDelete: 'cascade' }),
+    level: smallint('level').notNull(),
+    text: text('text').notNull(),
+  },
+  (t) => [index('static_hints_node_idx').on(t.nodeId)],
+);
+
+export type Question = typeof questions.$inferSelect;
+export type NewQuestion = typeof questions.$inferInsert;

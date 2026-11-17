@@ -19,6 +19,7 @@ import { CourseError } from './errors';
 import { validateGraph, type CourseIssue } from './graph';
 import { contentIssues } from '../content/validation';
 import { copyContent } from '../content/copy';
+import { copyQuestions } from '../questions/copy';
 import { declaredLevels, parseCourseImport } from './import';
 
 /** Anyone holding a role may browse; a signed-in user with every role removed may not. */
@@ -234,7 +235,7 @@ export async function updateVersion(
 /**
  * Starts the next version of a published one: copies skills, nodes, edges and node-skill links into a
  * new draft (not published, audit results not carried over) and links it with `parent_version_id` (D-06).
- * Content items and their chunks are copied too; questions will be once M04 adds them.
+ * Content items and their chunks and the questions are copied too.
  */
 export async function createNewVersion(db: Db, user: AuthUser | null, sourceVersionId: string) {
   const { version: source, course, user: actor } = await loadVersion(db, user, sourceVersionId);
@@ -310,6 +311,7 @@ export async function createNewVersion(db: Db, user: AuthUser | null, sourceVers
       ),
     );
     await copyContent(tx, nodeIds);
+    await copyQuestions(tx, nodeIds, skillIds);
     return { courseId: course.id, versionId, versionNo: next };
   });
 }

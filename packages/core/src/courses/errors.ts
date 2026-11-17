@@ -8,7 +8,10 @@ export type CourseErrorCode =
   | 'course_not_found'
   | 'invalid_content'
   | 'content_not_found'
-  | 'media_not_found';
+  | 'media_not_found'
+  | 'question_not_found'
+  | 'invalid_question'
+  | 'wrong_pool';
 
 const httpStatus: Record<CourseErrorCode, number> = {
   invalid_course: 422,
@@ -19,6 +22,9 @@ const httpStatus: Record<CourseErrorCode, number> = {
   invalid_content: 422,
   content_not_found: 404,
   media_not_found: 404,
+  question_not_found: 404,
+  invalid_question: 422,
+  wrong_pool: 409,
 };
 
 export class CourseError extends Error {

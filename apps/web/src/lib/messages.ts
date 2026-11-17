@@ -19,6 +19,9 @@ export const errorMessages: Record<AuthErrorCode | CourseErrorCode | 'internal',
   invalid_content: 'Матеріал містить помилки. Перегляньте список проблем.',
   content_not_found: 'Матеріал не знайдено.',
   media_not_found: 'Відео не знайдено.',
+  question_not_found: 'Питання не знайдено.',
+  invalid_question: 'Питання містить помилки. Перегляньте список проблем.',
+  wrong_pool: 'Питання з іншого пулу не можна використати тут.',
   internal: 'Щось пішло не так. Спробуйте ще раз.',
 };
 

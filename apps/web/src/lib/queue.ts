@@ -1,11 +1,15 @@
 import { PgBoss } from 'pg-boss';
 import {
+  GENERATE_QUESTIONS_QUEUE,
   INDEX_NODE_QUEUE,
   loadConfig,
   needsTranscription,
   TRANSCRIBE_QUEUE,
+  VALIDATE_QUESTION_QUEUE,
+  type GenerateQuestionsJob,
   type IndexNodeJob,
   type TranscribeJob,
+  type ValidateQuestionJob,
 } from '@eduforge/core';
 import type { ContentItem } from '@eduforge/db';
 
@@ -52,5 +56,26 @@ export async function queueContentWork(
     }
   } catch (err) {
     console.error('[web] could not queue content work; the worker will pick it up later', err);
+  }
+}
+
+/** Asks the worker to generate questions for a node. Unlike content work this is an explicit request, so a down queue is an error. */
+export async function queueGenerateQuestions(job: GenerateQuestionsJob) {
+  const boss = await getBoss();
+  const id = await boss.send(GENERATE_QUESTIONS_QUEUE, job, {
+    singletonKey: `${job.nodeId}:${job.pool}`,
+  });
+  return { alreadyQueued: id === null }; // a request for the same node and pool is still waiting
+}
+
+/** Asks the worker to validate one question; if the queue is down the worker re-queues pending ones when it starts. */
+export async function queueValidateQuestion(questionId: string) {
+  try {
+    const boss = await getBoss();
+    await boss.send(VALIDATE_QUESTION_QUEUE, { questionId } satisfies ValidateQuestionJob, {
+      singletonKey: questionId,
+    });
+  } catch (err) {
+    console.error('[web] could not queue validation; the worker will pick it up later', err);
   }
 }
