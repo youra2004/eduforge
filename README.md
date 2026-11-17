@@ -34,6 +34,8 @@ Authoring (M08): an author creates a course on `/author`, builds its graph in th
 
 Final exam (M09): once every node is passed, `/courses/<version>/exam` shows the rules and starts it; ratings, question limits, pass mark and pause are `EXAM_*` env vars (a week's pause lasts minutes with `TIME_SCALE`).
 
+Proctoring (M10): the exam asks for the proctoring consent, then for the camera, light and fullscreen on the exam page; it is deterrence and evidence, not a guarantee. Hard events (leaving fullscreen, focus lost, copy/paste, devtools) stop the attempt and strike (7 d → 30 d → permanent, exams only); soft signals (faces, frame checks, typing rhythm) go to the admin queue at `/admin/strikes`, and every strike can be appealed. Frames are checked in memory and kept encrypted only when they trigger an event. Set `EVIDENCE_KEY` (`openssl rand -hex 32`) in `.env`; `PROCTOR_PROVIDER=mock` plays scenarios in demo mode (`/courses/<id>/exam?proctor=phone|second_person|other_face|gaze_away|no_face`). The worker deletes expired evidence daily. The e2e run uses Chromium's fake camera.
+
 Node content (text and video) is edited on the node page, opened from the course graph. Uploaded videos go to `STORAGE_DIR`; embeddings and transcripts are made by the worker (mock providers by default, see `.env.example`).
 
 Check it: `curl localhost:3000/api/health` returns `{"ok":true,...}` once the worker has started.

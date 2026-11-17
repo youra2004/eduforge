@@ -12,7 +12,15 @@ const port = Number(process.env.E2E_PORT ?? 3100);
 
 export default defineConfig({
   testDir: './e2e',
-  use: { baseURL: `http://localhost:${port}`, actionTimeout: 20_000 },
+  use: {
+    baseURL: `http://localhost:${port}`,
+    actionTimeout: 20_000,
+    // The exam needs a camera: Chromium's fake device stands in for it, and the permission is granted up front.
+    permissions: ['camera'],
+    launchOptions: {
+      args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+    },
+  },
   webServer: {
     command: 'pnpm --filter @eduforge/web dev',
     // Uploaded videos of the e2e run go to a throwaway directory, not to ~/.eduforge.
@@ -28,6 +36,10 @@ export default defineConfig({
       EXPERIMENT_HEARTBEAT_SECONDS: '2',
       // An exam question lasts 20 s here (90 s in production), so the e2e run can wait out a deadline.
       EXAM_CHOICE_QUESTION_SECONDS: '20',
+      // A frame check every 3 s (60 s in production), so the scenarios can play out; losing focus counts after 1 s.
+      SNAPSHOT_INTERVAL_SECONDS: '3',
+      PROCTOR_FOCUS_GRACE_SECONDS: '1',
+      PROCTOR_PROVIDER: 'mock',
     },
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
