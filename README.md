@@ -30,6 +30,8 @@ pnpm import-course packages/core/seed/demo-course.json author@example.com
 
 Study demo (M07): `pnpm seed-experiment author@example.com` imports and publishes the two demo topics (slugs `EXPERIMENT_COURSE_A/B`). Students join on `/experiment`; the admin page exports de-identified CSVs for `analysis/` (see `analysis/README.md`).
 
+Authoring (M08): an author creates a course on `/author`, builds its graph in the visual editor on the course page, fills nodes with content and questions, and sends the version to the audit (the worker runs it, mock LLM by default). A rating of 10 waits for an expert that an admin assigns on `/admin`; the expert decides on `/expert`. Published versions are immutable: a change is a new version that is audited again. Tunables: `AUDIT_MAX_ATTEMPTS`, `AUDIT_SCORING_RUNS`, `AUDIT_VOLUME_CAPS`. The e2e audit tests need the worker running (`pnpm --filter @eduforge/worker start`).
+
 Node content (text and video) is edited on the node page, opened from the course graph. Uploaded videos go to `STORAGE_DIR`; embeddings and transcripts are made by the worker (mock providers by default, see `.env.example`).
 
 Check it: `curl localhost:3000/api/health` returns `{"ok":true,...}` once the worker has started.

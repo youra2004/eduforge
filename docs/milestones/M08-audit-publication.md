@@ -19,13 +19,13 @@ The full path of a course from draft to publication: editors, an AI audit with t
 Pairwise comparisons against anchors (OQ-9), real external experts.
 
 ## Acceptance criteria
-- [ ] Formula unit tests: junior/middle/senior band edges, `cap` lowers the score, 10 sends the version to `expert_review`
-- [ ] A course that does not match its description returns to `changes_requested` with a list of mismatches
-- [ ] A declared but uncovered skill is flagged to the author
-- [ ] A sixth audit run on a version is rejected
-- [ ] The rating-10 review flow passes e2e: assignment → checklist → decision → notification
-- [ ] A published version cannot be edited; a new version is created and goes through the audit again
-- [ ] The student sees the rating in the catalog and on the course page
+- [x] Formula unit tests: junior/middle/senior band edges, `cap` lowers the score, 10 sends the version to `expert_review`
+- [x] A course that does not match its description returns to `changes_requested` with a list of mismatches
+- [x] A declared but uncovered skill is flagged to the author
+- [x] A sixth audit run on a version is rejected
+- [x] The rating-10 review flow passes e2e: assignment → checklist → decision → notification
+- [x] A published version cannot be edited; a new version is created and goes through the audit again
+- [x] The student sees the rating in the catalog and on the course page
 
 ## Tests
 Unit: formula, run median, states. Integration: the pipeline on the Mock with "good/weak/non-matching course" fixtures. e2e: the author and expert paths.

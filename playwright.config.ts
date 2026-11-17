@@ -12,7 +12,7 @@ const port = Number(process.env.E2E_PORT ?? 3100);
 
 export default defineConfig({
   testDir: './e2e',
-  use: { baseURL: `http://localhost:${port}` },
+  use: { baseURL: `http://localhost:${port}`, actionTimeout: 20_000 },
   webServer: {
     command: 'pnpm --filter @eduforge/web dev',
     // Uploaded videos of the e2e run go to a throwaway directory, not to ~/.eduforge.
