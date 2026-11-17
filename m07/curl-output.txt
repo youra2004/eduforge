@@ -1,0 +1,26 @@
+--- participant 1
+pretest before joining: HTTP 403 {"error": "experiment_not_joined", "message": "Спершу погодьтеся на участь у дослідженні.", "issues": []}
+join without consent    : HTTP 422 {"error": "consent_required", "message": "Для участі потрібна інформована згода.", "issues": []}
+join: HTTP 201 code P-KUJGMF [('B', 1, 'method', 'pretest'), ('A', 2, 'control', 'waiting')]
+enroll before pretest (B): HTTP 409 {"error": "experiment_step_not_allowed", "message": "Цей крок зараз недоступний. Дотримуйтесь порядку на сторінці дослідження.", "issues": []}
+posttest too early (B)  : HTTP 409 {"error": "experiment_step_not_allowed", "message": "Цей крок зараз недоступний. Дотримуйтесь порядку на сторінці дослідження.", "issues": []}
+second module too early   : HTTP 409 {"error": "experiment_step_not_allowed", "message": "Цей крок зараз недоступний. Дотримуйтесь порядку на сторінці дослідження.", "issues": []}
+pretest answered: status submitted | result shown to student: None | verdicts: [None, None, None] ...
+enroll after pretest: HTTP 201 {"progress": [{"nodeId": "7c481b01-0266-4b15-903a-f2b707108e23", "state": "locked", "roundNo": 1, "attemptsInRound": 0, "cooldownUntil": null, "passedAt": null}, {"nodeId": "883f980e-0dcc-422f-8f0f-8d5ef5baddc9", "state": "availab
+node states: ['available', 'locked']
+tutor (method)        : HTTP 200 {"sessionId": "d8030249-6817-4885-80ed-f8a9bcd10547", "message": {"id": "3989401c-163a-4a25-b7d8-85fb53e8da63", "content": "Спробуйте розкласти завдання на частини: що в ньому дано, що треба знайти і яке поняття з матеріалу тут за
+node test (method)    : HTTP 403 {"error": "node_locked", "message": "Цей вузол ще закритий: пройдіть усі попередні вузли.", "issues": []}
+export as student        : HTTP 403 {"error": "forbidden", "message": "Недостатньо прав для цієї дії."}
+--- participant 2
+pretest before joining: HTTP 403 {"error": "experiment_not_joined", "message": "Спершу погодьтеся на участь у дослідженні.", "issues": []}
+join without consent    : HTTP 422 {"error": "consent_required", "message": "Для участі потрібна інформована згода.", "issues": []}
+join: HTTP 201 code P-JK7R89 [('A', 1, 'control', 'pretest'), ('B', 2, 'method', 'waiting')]
+enroll before pretest (A): HTTP 409 {"error": "experiment_step_not_allowed", "message": "Цей крок зараз недоступний. Дотримуйтесь порядку на сторінці дослідження.", "issues": []}
+posttest too early (A)  : HTTP 409 {"error": "experiment_step_not_allowed", "message": "Цей крок зараз недоступний. Дотримуйтесь порядку на сторінці дослідження.", "issues": []}
+second module too early   : HTTP 409 {"error": "experiment_step_not_allowed", "message": "Цей крок зараз недоступний. Дотримуйтесь порядку на сторінці дослідження.", "issues": []}
+pretest answered: status submitted | result shown to student: None | verdicts: [None, None, None] ...
+enroll after pretest: HTTP 201 {"progress": [{"nodeId": "fd9acc7b-5370-44fa-935d-391d03e41d1d", "state": "available", "roundNo": 1, "attemptsInRound": 0, "cooldownUntil": null, "passedAt": null}, {"nodeId": "ff76998a-8a8d-4be3-af0a-0ff62ff1de10", "state": "avai
+node states: ['available', 'available']
+tutor (control)        : HTTP 403 {"error": "tutor_disabled", "message": "У цьому модулі репетитор не передбачений.", "issues": []}
+node test (control)    : HTTP 403 {"error": "node_test_disabled", "message": "У цьому модулі тести вузлів не передбачені: навчайтеся у власному порядку.", "issues": []}
+export as student        : HTTP 403 {"error": "forbidden", "message": "Недостатньо прав для цієї дії."}

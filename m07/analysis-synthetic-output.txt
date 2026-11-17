@@ -1,0 +1,42 @@
+==============================================================================
+SYNTHETIC DATA: generated with a fixed seed for testing the analysis. Not a research result.
+==============================================================================
+60 participant-module rows, 30 participants
+
+Descriptives per condition (all modules)
+  method   pretest           mean 0.378  median 0.333  sd 0.131  n 30
+  method   posttest          mean 0.650  median 0.667  sd 0.126  n 30
+  method   delayed_posttest  mean 0.600  median 0.667  sd 0.112  n 30
+  method   active_seconds    mean 898.467  median 913.500  sd 101.339  n 30
+  control  pretest           mean 0.333  median 0.333  sd 0.124  n 30
+  control  posttest          mean 0.533  median 0.500  sd 0.141  n 30
+  control  delayed_posttest  mean 0.461  median 0.500  sd 0.143  n 30
+  control  active_seconds    mean 729.067  median 745.500  sd 94.368  n 30
+
+H1  normalized gain (post-test)  (n = 30 pairs)
+  method  mean 0.441  median 0.400  sd 0.161
+  control mean 0.297  median 0.333  sd 0.172
+  mean difference +0.144   95% bootstrap CI [+0.066, +0.221]
+  Cohen's d (paired) +0.65
+  paired t-test p = 0.0012   Wilcoxon p = 0.0019   (normality of differences, Shapiro p = 0.699)
+  use the Wilcoxon result when the differences are clearly non-normal
+
+H2  delayed post-test score  (n = 30 pairs)
+  method  mean 0.600  median 0.667  sd 0.112
+  control mean 0.461  median 0.500  sd 0.143
+  mean difference +0.139   95% bootstrap CI [+0.083, +0.194]
+  Cohen's d (paired) +0.88
+  paired t-test p = 0.0000   Wilcoxon p = 0.0001   (normality of differences, Shapiro p = 0.005)
+  use the Wilcoxon result when the differences are clearly non-normal
+
+H3  active learning time, seconds  (n = 30 pairs)
+  method  mean 898.467  median 913.500  sd 101.339
+  control mean 729.067  median 745.500  sd 94.368
+  mean difference +169.400   95% bootstrap CI [+130.931, +207.702]
+  Cohen's d (paired) +1.53
+  paired t-test p = 0.0000   Wilcoxon p = 0.0000   (normality of differences, Shapiro p = 0.878)
+  use the Wilcoxon result when the differences are clearly non-normal
+
+Order effect on the gain difference: {'A_then_B': 0.124, 'B_then_A': 0.163} Welch p = 0.6372
+
+SYNTHETIC DATA: generated with a fixed seed for testing the analysis. Not a research result.
