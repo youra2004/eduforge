@@ -28,6 +28,8 @@ Import a course (the seed is a small Ukrainian demo course; the author must alre
 pnpm import-course packages/core/seed/demo-course.json author@example.com
 ```
 
+Study demo (M07): `pnpm seed-experiment author@example.com` imports and publishes the two demo topics (slugs `EXPERIMENT_COURSE_A/B`). Students join on `/experiment`; the admin page exports de-identified CSVs for `analysis/` (see `analysis/README.md`).
+
 Node content (text and video) is edited on the node page, opened from the course graph. Uploaded videos go to `STORAGE_DIR`; embeddings and transcripts are made by the worker (mock providers by default, see `.env.example`).
 
 Check it: `curl localhost:3000/api/health` returns `{"ok":true,...}` once the worker has started.

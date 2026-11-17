@@ -11,3 +11,4 @@ test-results
 next-env.d.ts
 .local-agent
 CLAUDE.local.md
+analysis/synthetic/
