@@ -84,11 +84,18 @@ export async function allowedNodeIds(db: Db, userId: string, nodeId: string): Pr
  * F6-R1: help is for learning, not for a test that is being taken. Any running assessment of the student
  * closes the tutor, whichever node it is on, so another node's chat cannot be used to coach a running test.
  */
-async function assertTutorAvailable(db: Db | Tx, userId: string) {
+async function assertTutorAvailable(db: Db | Tx, userId: string, now: Date) {
   const [running] = await db
     .select({ id: assessments.id })
     .from(assessments)
-    .where(and(eq(assessments.userId, userId), eq(assessments.status, 'in_progress')))
+    .where(
+      and(
+        eq(assessments.userId, userId),
+        eq(assessments.status, 'in_progress'),
+        // An exam past its deadline is over even if nobody has closed it yet (F8-R3).
+        or(isNull(assessments.deadlineAt), gt(assessments.deadlineAt, now)),
+      ),
+    )
     .limit(1);
   if (running) throw new CourseError('tutor_unavailable');
 }
@@ -234,7 +241,7 @@ export async function askTutor(
   // them has logged its message (NFR-4).
   const { sessionId, level, history } = await db.transaction(async (tx) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'tutor:' + actor.id}))`);
-    await assertTutorAvailable(tx, actor.id);
+    await assertTutorAvailable(tx, actor.id, now);
     await assertWithinLimits(tx, actor.id, deps.limits, now);
 
     let id: string;

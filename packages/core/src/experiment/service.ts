@@ -496,7 +496,7 @@ export async function answerAssessment(
   if (a.kind === 'node_test') {
     return answerItem(db, llm, user, assessmentId, itemId, answer, learning, now);
   }
-  if (a.kind === 'exam') throw new CourseError('assessment_not_found'); // M09
+  if (a.kind === 'exam') throw new CourseError('assessment_not_found'); // the exam has its own routes
   return answerStudyItem(db, llm, user, a, itemId, answer, learning, now);
 }
 

@@ -589,6 +589,29 @@ describe('availability and limits (F6-R1, NFR-4, NFR-7)', () => {
     );
   });
 
+  it('is off while an exam is running and back once its deadline has passed', async () => {
+    const { student, types, versionId } = await setup();
+    const t0 = new Date('2026-03-01T10:00:00Z');
+    await db.insert(assessments).values({
+      userId: student.id,
+      kind: 'exam',
+      courseVersionId: versionId,
+      questionSetSeed: 1,
+      startedAt: t0,
+      deadlineAt: new Date(t0.getTime() + 45 * 60 * 1000),
+    });
+    const { deps } = makeDeps();
+    const during = new Date(t0.getTime() + 60 * 1000);
+    expect(await code(askTutor(db, deps, student, types.id, { message: 'Допоможи' }, during))).toBe(
+      'tutor_unavailable',
+    );
+    // the exam is over by its deadline even if nobody has opened it since
+    const after = new Date(t0.getTime() + 46 * 60 * 1000);
+    expect(await code(askTutor(db, deps, student, types.id, { message: 'Допоможи' }, after))).toBe(
+      'ok',
+    );
+  });
+
   it('rate limit: the next message in the same minute is refused, a minute later it works', async () => {
     const { student, types } = await setup();
     const { deps } = makeDeps({}, { ratePerMinute: 2 });
