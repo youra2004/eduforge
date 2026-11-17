@@ -659,7 +659,7 @@ describe('the last audit run is not thrown away', () => {
     expect((await publishVersion(db, author, versionId)).status).toBe('published');
   });
 
-  it('keeps "publish with 9" open when no run is left, and clears the stale result when improving', async () => {
+  it('keeps "publish with 9" open when no run is left, and clears the stale score, keeps the feedback, when improving', async () => {
     const tenSettings: AuditSettings = {
       ...settings,
       rating: { ...DEFAULT_RATING_CONFIG, volumeCaps: [] },
@@ -693,11 +693,12 @@ describe('the last audit run is not thrown away', () => {
       aiLevel: null,
       aiHardness: null,
       volumeCap: null,
-      auditSummary: null,
     });
+    // the feedback to improve from is kept
+    expect((await statusOf(other)).auditSummary).toMatchObject({ outcome: 'expert_review' });
   });
 
-  it('an expert who was moved off a review cannot decide it any more', async () => {
+  it('an expert whose review was given to another expert cannot decide it', async () => {
     const tenSettings: AuditSettings = {
       ...settings,
       rating: { ...DEFAULT_RATING_CONFIG, volumeCaps: [] },

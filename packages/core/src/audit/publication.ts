@@ -12,13 +12,12 @@ import { moveVersion } from './transitions';
 /** What the author gets when an expert rejects a candidate for 10: the cap, one step below the top (F4-R6). */
 export const FALLBACK_RATING = TOP_RATING - 1;
 
-/** The result of an audit that no longer describes the course. */
+/** The score of an audit that no longer describes the course. The feedback stays: it is what the author improves from. */
 const clearedAudit = {
   rating: null,
   aiLevel: null,
   aiHardness: null,
   volumeCap: null,
-  auditSummary: null,
 };
 
 async function ownVersion(db: Db, user: AuthUser | null, versionId: string) {
@@ -42,7 +41,7 @@ export async function publishVersion(db: Db, user: AuthUser | null, versionId: s
 
 /**
  * The author takes a version that is ready to publish back to editing, to change its score before the final
- * publication (D-09). The old result is dropped, because it no longer describes the course.
+ * publication (D-09). The old score is dropped, because it no longer describes the course; the feedback stays.
  */
 export async function reopenVersion(db: Db, user: AuthUser | null, versionId: string) {
   await ownVersion(db, user, versionId);
