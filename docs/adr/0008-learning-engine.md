@@ -1,0 +1,6 @@
+# ADR-0008: Learning engine
+
+- BKT runs per answer (`question.guess`/`slip`, config `learn`/`p_init`), so a half-finished test already counts and `mastery_history` has one row per answer. The pass rule is checked once, after the last answer; there is no separate "submit". Node tests have no timer (the exam adds one in M09), so `assessments.deadline_at` stays null.
+- OQ-10 interpretation of D-11: `attempts_in_round` counts finished tests; the second failed one sets `cooldown` and `cooldown_until = now + NODE_COOLDOWN × 1/TIME_SCALE`. The pause ends lazily when the node is read or started (no job); every function takes `now`, so tests use a fake clock and the client never supplies time.
+- Access (P1): `assertNodeAccess` closes a `locked` node's material, video and practice for students; the course's author, admins and experts may look at everything. Practice draws from the `node` pool (the only pool a student may see), shows right/wrong but never the key, and only writes an `event_log` row. Only published versions can be joined.
+- `event_log` names follow RESEARCH.md; `module` and `condition` are added by the experiment milestone (M07). New config: `NODE_TEST_QUESTIONS_PER_SKILL` (3).

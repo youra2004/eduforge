@@ -293,3 +293,88 @@ select {
   display: flex;
   gap: 16px;
 }
+.graph-node.in_progress {
+  border-color: var(--accent);
+  background: #eef3ff;
+}
+.graph-node.passed {
+  border-color: #0a7a3d;
+  background: #eaf7ef;
+}
+.graph-node.cooldown {
+  border-color: var(--danger);
+  background: #fdf0ee;
+}
+.graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 8px 0;
+  font-size: 0.8rem;
+}
+.options {
+  display: grid;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 12px 0;
+}
+.options label.check {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+}
+.learning {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 2px solid var(--line);
+}
+.skills {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.skills li {
+  display: grid;
+  grid-template-columns: 1fr 2fr 4rem;
+  gap: 12px;
+  align-items: center;
+}
+.bar {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: #e6e9ee;
+  overflow: hidden;
+}
+.bar .fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.bar .fill.ok {
+  background: #0a7a3d;
+}
+.legend-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+.legend-chip.available,
+.legend-chip.in_progress {
+  border-color: var(--accent);
+}
+.legend-chip.passed {
+  border-color: #0a7a3d;
+  background: #eaf7ef;
+}
+.legend-chip.cooldown {
+  border-color: var(--danger);
+  background: #fdf0ee;
+}
+.legend-chip.locked {
+  background: #eef0f3;
+}

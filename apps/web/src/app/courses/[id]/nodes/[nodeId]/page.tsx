@@ -3,11 +3,14 @@ import { notFound } from 'next/navigation';
 import {
   AuthError,
   CourseError,
+  getProgress,
   getVersionGraph,
+  learningSettings,
   listNodeContent,
   listNodeQuestions,
   loadConfig,
 } from '@eduforge/core';
+import { NodeLearning } from '@/components/NodeLearning';
 import { ContentEditor } from '@/components/ContentEditor';
 import { Markdown } from '@/components/Markdown';
 import { QuestionBank, type BankQuestion } from '@/components/QuestionBank';
@@ -34,7 +37,31 @@ export default async function NodePage({
   const graph = await getVersionGraph(db, user, id).catch(orNotFound);
   const node = graph.nodes.find((n) => n.id === nodeId);
   if (!node) notFound();
-  const { items, canEdit } = await listNodeContent(db, user, nodeId).catch(orNotFound);
+  const opened = await listNodeContent(db, user, nodeId).catch((err) => {
+    // The server refuses a locked node; the student gets a reason, not a 404.
+    if (err instanceof CourseError && (err.code === 'node_locked' || err.code === 'not_enrolled')) {
+      return err.code;
+    }
+    return orNotFound(err);
+  });
+  if (typeof opened === 'string') {
+    return (
+      <div className="card" data-testid="node-closed">
+        <p>
+          <Link href={`/courses/${id}`}>← {graph.version.title}</Link>
+        </p>
+        <h1>{node.title}</h1>
+        <p className="error">
+          {opened === 'node_locked'
+            ? 'Цей вузол ще закритий: спочатку пройдіть усі вузли, від яких він залежить.'
+            : 'Щоб відкрити вузол, запишіться на курс.'}
+        </p>
+      </div>
+    );
+  }
+  const { items, canEdit } = opened;
+  const now = new Date();
+  const mine = (await getProgress(db, user, id, now))?.find((p) => p.nodeId === nodeId);
   // Questions carry answer keys, so only the course's author, admins and experts get them.
   const bank = await listNodeQuestions(db, user, nodeId).catch((err) => {
     if (err instanceof AuthError) return null;
@@ -85,6 +112,17 @@ export default async function NodePage({
           )}
         </article>
       ))}
+      {mine && (
+        <NodeLearning
+          nodeId={nodeId}
+          state={mine.state}
+          roundNo={mine.roundNo}
+          attemptsInRound={mine.attemptsInRound}
+          attemptsPerRound={learningSettings().attemptsPerRound}
+          cooldownUntil={mine.cooldownUntil?.toISOString() ?? null}
+          serverNow={now.toISOString()}
+        />
+      )}
       {canEdit && <ContentEditor nodeId={nodeId} items={items} />}
       {bank && (
         <QuestionBank

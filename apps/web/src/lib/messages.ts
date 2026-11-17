@@ -22,6 +22,14 @@ export const errorMessages: Record<AuthErrorCode | CourseErrorCode | 'internal',
   question_not_found: 'Питання не знайдено.',
   invalid_question: 'Питання містить помилки. Перегляньте список проблем.',
   wrong_pool: 'Питання з іншого пулу не можна використати тут.',
+  not_enrolled: 'Спочатку запишіться на курс.',
+  node_locked: 'Цей вузол ще закритий: пройдіть усі попередні вузли.',
+  node_cooldown: 'Триває пауза після невдалих спроб. Спробуйте пізніше.',
+  node_passed: 'Цей вузол уже пройдено.',
+  test_unavailable: 'Тест цього вузла ще не готовий: у банку замало перевірених питань.',
+  assessment_not_found: 'Тест не знайдено.',
+  assessment_closed: 'Цей тест уже завершено.',
+  already_answered: 'На це питання вже відповіли.',
   internal: 'Щось пішло не так. Спробуйте ще раз.',
 };
 
@@ -49,3 +57,11 @@ export const versionStatusLabels: Record<VersionStatus, string> = {
   published: 'Опубліковано',
   archived: 'В архіві',
 };
+
+export const nodeStateLabels = {
+  locked: 'Заблокований',
+  available: 'Доступний',
+  in_progress: 'У процесі',
+  passed: 'Пройдено',
+  cooldown: 'Пауза',
+} as const;
