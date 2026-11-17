@@ -38,6 +38,37 @@ const volumeCaps = z
     return steps;
   });
 
+/** `"3:20:45,6:30:60,10:40:90"`: ratings up to 3 get 20 questions in 45 minutes, up to 6 get 30 in 60, up to 10 get 40 in 90 (F8-R2). */
+const examProfiles = z
+  .preprocess(blankToUndefined, z.string().default('3:20:45,6:30:60,10:40:90'))
+  .transform((raw, ctx) => {
+    const steps = raw.split(',').map((part) => {
+      const [maxRating, questions, minutes] = part.split(':').map((n) => Number(n.trim()));
+      return { maxRating: maxRating!, questions: questions!, minutes: minutes! };
+    });
+    const ok =
+      steps.length > 0 &&
+      steps.every(
+        (s, i) =>
+          Number.isInteger(s.maxRating) &&
+          s.maxRating >= 1 &&
+          Number.isInteger(s.questions) &&
+          s.questions >= 1 &&
+          s.minutes > 0 &&
+          (i === 0 || s.maxRating > steps[i - 1]!.maxRating),
+      ) &&
+      steps[steps.length - 1]!.maxRating === 10;
+    if (!ok) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          'expected ascending "maxRating:questions:minutes" triples ending at rating 10, such as 3:20:45,6:30:60,10:40:90',
+      });
+      return z.NEVER;
+    }
+    return steps;
+  });
+
 const optional = z.preprocess(blankToUndefined, z.string().min(1).optional());
 
 const envSchema = z
@@ -68,6 +99,14 @@ const envSchema = z
     EXAM_PASS_PCT: fraction(0.7),
     EXAM_ATTEMPTS_PER_ROUND: count(2),
     EXAM_COOLDOWN_SECONDS: seconds(7 * 24 * 60 * 60),
+    EXAM_PROFILES: examProfiles,
+    EXAM_CHOICE_QUESTION_SECONDS: seconds(90),
+    EXAM_OPEN_QUESTION_SECONDS: seconds(5 * 60),
+    EXAM_MAX_INTERRUPTIONS: z.preprocess(
+      blankToUndefined,
+      z.coerce.number().int().min(0).default(2),
+    ),
+    EXAM_PERFECT_PCT: fraction(0.9),
 
     SNAPSHOT_INTERVAL_SECONDS: seconds(60),
     EVIDENCE_RETENTION_DAYS: seconds(30),
@@ -136,6 +175,11 @@ function toConfig(env: z.infer<typeof envSchema>) {
       passPct: env.EXAM_PASS_PCT,
       attemptsPerRound: env.EXAM_ATTEMPTS_PER_ROUND,
       cooldownSeconds: env.EXAM_COOLDOWN_SECONDS,
+      profiles: env.EXAM_PROFILES,
+      choiceQuestionSeconds: env.EXAM_CHOICE_QUESTION_SECONDS,
+      openQuestionSeconds: env.EXAM_OPEN_QUESTION_SECONDS,
+      maxInterruptions: env.EXAM_MAX_INTERRUPTIONS,
+      perfectPct: env.EXAM_PERFECT_PCT,
     },
     proctoring: {
       snapshotIntervalSeconds: env.SNAPSHOT_INTERVAL_SECONDS,

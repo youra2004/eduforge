@@ -473,6 +473,19 @@ export const assessmentStatuses = [
 export type AssessmentStatus = (typeof assessmentStatuses)[number];
 export const assessmentStatus = pgEnum('assessment_status', assessmentStatuses);
 
+export interface NodeSkillResult {
+  skillId: string;
+  name: string;
+  pKnown: number;
+}
+export type ExamSkillLevel = 'perfect' | 'good' | 'needs_work';
+export interface ExamSkillResult {
+  skillId: string;
+  name: string;
+  pct: number;
+  level: ExamSkillLevel;
+}
+
 export const assessments = pgTable(
   'assessments',
   {
@@ -489,11 +502,12 @@ export const assessments = pgTable(
     attemptNo: integer('attempt_no').notNull().default(1),
     status: assessmentStatus('status').notNull().default('in_progress'),
     startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
-    // Node tests have no timer; the exam (M09) sets it.
+    // Node tests have no timer; the exam sets it.
     deadlineAt: timestamp('deadline_at', { withTimezone: true }),
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     scorePct: real('score_pct'),
-    perSkill: jsonb('per_skill').$type<{ skillId: string; name: string; pKnown: number }[]>(),
+    // A node test stores the skill's mastery, the exam its share of points and level (F8-R4, F8-R7).
+    perSkill: jsonb('per_skill').$type<(NodeSkillResult | ExamSkillResult)[]>(),
     interruptions: integer('interruptions').notNull().default(0),
     riskScore: real('risk_score').notNull().default(0),
     questionSetSeed: bigint('question_set_seed', { mode: 'number' }).notNull(),

@@ -36,7 +36,13 @@ export type CourseErrorCode =
   | 'invalid_graph_edit'
   | 'review_not_found'
   | 'invalid_review'
-  | 'review_conflict';
+  | 'review_conflict'
+  | 'exam_not_eligible'
+  | 'exam_banned'
+  | 'exam_cooldown'
+  | 'exam_passed'
+  | 'exam_time_expired'
+  | 'exam_not_current';
 
 const httpStatus: Record<CourseErrorCode, number> = {
   invalid_course: 422,
@@ -75,6 +81,12 @@ const httpStatus: Record<CourseErrorCode, number> = {
   review_not_found: 404,
   invalid_review: 422,
   review_conflict: 409,
+  exam_not_eligible: 409,
+  exam_banned: 403,
+  exam_cooldown: 409,
+  exam_passed: 409,
+  exam_time_expired: 409,
+  exam_not_current: 409,
 };
 
 export class CourseError extends Error {
