@@ -71,6 +71,13 @@
       "when": 1794915834081,
       "tag": "0009_audit_publication",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794933678398,
+      "tag": "0010_proctoring",
+      "breakpoints": true
     }
   ]
 }

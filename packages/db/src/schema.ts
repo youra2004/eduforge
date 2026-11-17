@@ -771,3 +771,87 @@ export const notifications = pgTable(
 export type AuditRun = typeof auditRuns.$inferSelect;
 export type ExpertReview = typeof expertReviews.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+
+// Proctoring and strikes (DATA_MODEL.md section 10, F9).
+export const eventSeverities = ['info', 'soft', 'hard'] as const;
+export type EventSeverity = (typeof eventSeverities)[number];
+export const eventSeverity = pgEnum('event_severity', eventSeverities);
+
+export const strikeStatuses = [
+  'pending_review',
+  'confirmed',
+  'dismissed',
+  'appealed',
+  'overturned',
+] as const;
+export type StrikeStatus = (typeof strikeStatuses)[number];
+export const strikeStatus = pgEnum('strike_status', strikeStatuses);
+
+export const proctorSources = ['browser', 'frame', 'keystroke', 'server'] as const;
+export type ProctorSource = (typeof proctorSources)[number];
+
+// Append-only (D-27, P5): what happened during an exam attempt. The server sets `severity`, never the browser.
+export const proctorEvents = pgTable(
+  'proctor_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    assessmentId: uuid('assessment_id')
+      .notNull()
+      .references(() => assessments.id),
+    ts: timestamp('ts', { withTimezone: true }).notNull().defaultNow(),
+    source: text('source').$type<ProctorSource>().notNull(),
+    type: text('type').notNull(),
+    severity: eventSeverity('severity').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+  },
+  (t) => [
+    index('proctor_events_assessment_idx').on(t.assessmentId, t.ts),
+    check(
+      'proctor_events_source_check',
+      sql`${t.source} IN ('browser', 'frame', 'keystroke', 'server')`,
+    ),
+  ],
+);
+
+// Only a frame that triggered an event is kept: encrypted on disk, with a lifetime (F9-R7, D-27).
+export const proctorEvidence = pgTable(
+  'proctor_evidence',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    eventId: uuid('event_id')
+      .notNull()
+      .unique()
+      .references(() => proctorEvents.id),
+    storageKey: text('storage_key').notNull(),
+    sha256: text('sha256').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [index('proctor_evidence_expires_idx').on(t.expiresAt)],
+);
+
+export const strikes = pgTable(
+  'strikes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    assessmentId: uuid('assessment_id')
+      .notNull()
+      .unique()
+      .references(() => assessments.id),
+    reason: text('reason').notNull(),
+    status: strikeStatus('status').notNull(),
+    // 1st, 2nd, 3rd confirmed strike; 0 while the strike waits for an admin.
+    level: smallint('level').notNull().default(0),
+    banUntil: timestamp('ban_until', { withTimezone: true }),
+    reviewedBy: uuid('reviewed_by').references(() => users.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [index('strikes_user_idx').on(t.userId, t.status)],
+);
+
+export type ProctorEvent = typeof proctorEvents.$inferSelect;
+export type ProctorEvidence = typeof proctorEvidence.$inferSelect;
+export type Strike = typeof strikes.$inferSelect;
