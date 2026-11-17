@@ -445,6 +445,48 @@ describe('server-side timers (F8-R3, P1)', () => {
     expect(next.answered).toBeGreaterThanOrEqual(1);
   });
 
+  it('waits for an answer still being graded before finishing, and gives up on one that never gets a grade', async () => {
+    const { student, versionId } = await setup({ rating: 2 });
+    let view = await startExam(db, student, versionId, settings, T0);
+    for (let i = 0; i < 18; i++) {
+      view = await answerExam(
+        db,
+        llm,
+        student,
+        view.id,
+        view.current!.itemId,
+        { optionIndex: CORRECT },
+        settings,
+        at(10 + i),
+      );
+    }
+    // question 19 was taken in time and is still with the grader (a reserved answer has no points yet)
+    const rows = await itemsOf(view.id);
+    await db
+      .update(assessmentItems)
+      .set({ answer: { optionIndex: CORRECT }, answeredAt: at(40) })
+      .where(eq(assessmentItems.id, rows[18]!.id));
+    const last = await answerExam(
+      db,
+      llm,
+      student,
+      view.id,
+      rows[19]!.id,
+      { optionIndex: CORRECT },
+      settings,
+      at(45),
+    );
+    expect(last.status).toBe('in_progress');
+    expect(last.result).toBeNull();
+    // an interruption now would throw away a finished attempt: it is not taken
+    const kept = await interruptExam(db, student, view.id, 'network', settings, at(50));
+    expect(kept).toMatchObject({ status: 'in_progress', interruptions: 0 });
+    // the request that held question 19 died: after the grace period it counts as no points and the exam ends
+    const done = await getExam(db, student, view.id, settings, at(40 + 121));
+    expect(done.status).toBe('passed');
+    expect(done.result!.scorePct).toBe(95);
+  });
+
   it('refuses answers to a question that is not the current one', async () => {
     const { student, versionId } = await setup();
     const view = await startExam(db, student, versionId, settings, T0);

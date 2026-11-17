@@ -15,7 +15,7 @@ import {
   type Question,
 } from '@eduforge/db';
 import type { LLMClient } from '@eduforge/llm';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/guard';
 import { requireRole } from '../auth/guard';
@@ -82,9 +82,14 @@ interface ExamRow {
   skillName: string;
 }
 
+/** An answer taken in time is graded within this long; one still unscored after it is given up on (no points). */
+const GRADING_GRACE_SECONDS = 120;
+
 interface Settled {
   a: Assessment;
   rows: ExamRow[];
+  /** An answer was taken in time and is still being graded by its request. */
+  grading: boolean;
   current: ExamClock['current'];
   /** Questions that ran out of time during this call. */
   missedIds: string[];
@@ -157,8 +162,29 @@ async function settle(
     .for('update');
   let rows = await loadRows(tx, assessmentId);
   if (!a || a.status !== 'in_progress' || !a.deadlineAt) {
-    return { a: a!, rows, current: null, missedIds: [] };
+    return { a: a!, rows, grading: false, current: null, missedIds: [] };
   }
+  // A request that died while grading (a restart, say) would leave its answer unscored for good.
+  const stale = rows.filter(
+    (r) =>
+      r.item.answeredAt &&
+      r.item.score === null &&
+      r.item.answeredAt.getTime() + GRADING_GRACE_SECONDS * 1000 < now.getTime(),
+  );
+  for (const r of stale) {
+    await tx
+      .update(assessmentItems)
+      .set({ isCorrect: false, score: 0, gradedBy: 'auto' })
+      .where(eq(assessmentItems.id, r.item.id));
+    await logEvent(
+      tx,
+      a.userId,
+      'grading_abandoned',
+      { assessmentId: a.id, itemId: r.item.id },
+      a.courseVersionId,
+    );
+  }
+  if (stale.length > 0) rows = await loadRows(tx, assessmentId);
   const clock = examClock({
     items: rows.map((r) => ({
       id: r.item.id,
@@ -205,14 +231,14 @@ async function settle(
   // An answer taken in time but still being graded has no points yet; its request finishes the exam.
   const grading = rows.some((r) => r.item.answeredAt && r.item.score === null);
   if (!clock.current && grading) {
-    return { a, rows, current: null, missedIds: clock.missed.map((m) => m.id) };
+    return { a, rows, grading, current: null, missedIds: clock.missed.map((m) => m.id) };
   }
   if (!clock.current) {
     const endedAt = clock.missed[clock.missed.length - 1]?.at ?? now;
     const finished = await finishExam(tx, a, rows, settings, endedAt);
-    return { a: finished, rows, current: null, missedIds: clock.missed.map((m) => m.id) };
+    return { a: finished, rows, grading, current: null, missedIds: clock.missed.map((m) => m.id) };
   }
-  return { a, rows, current: clock.current, missedIds: clock.missed.map((m) => m.id) };
+  return { a, rows, grading, current: clock.current, missedIds: clock.missed.map((m) => m.id) };
 }
 
 /** Grades the exam from the points of its questions (F8-R4, F8-R7). `forced` fails it whatever the points. */
@@ -667,10 +693,24 @@ export async function answerExam(
     );
   } catch (err) {
     // Not graded: give the question back rather than leave a reserved answer with no points.
-    await db
-      .update(assessmentItems)
-      .set({ answer: null, answeredAt: null, timeMs: null })
-      .where(and(eq(assessmentItems.id, itemId), isNull(assessmentItems.score)));
+    await db.transaction(async (tx) => {
+      await tx.select().from(assessments).where(eq(assessments.id, own.id)).for('update');
+      await tx
+        .update(assessmentItems)
+        .set({ answer: null, answeredAt: null, timeMs: null })
+        .where(and(eq(assessmentItems.id, itemId), isNull(assessmentItems.score)));
+      // A reload while it was reserved started the next question's clock; that start goes back too.
+      await tx
+        .update(assessmentItems)
+        .set({ shownAt: null })
+        .where(
+          and(
+            eq(assessmentItems.assessmentId, own.id),
+            isNull(assessmentItems.answeredAt),
+            ne(assessmentItems.id, itemId),
+          ),
+        );
+    });
     throw err;
   }
 
@@ -701,7 +741,7 @@ export async function answerExam(
     );
     // Questions the clock closed meanwhile are already answered; with none left the exam is graded.
     const rows = await loadRows(tx, own.id);
-    if (a?.status === 'in_progress' && rows.every((r) => r.item.answeredAt)) {
+    if (a?.status === 'in_progress' && rows.every((r) => r.item.score !== null)) {
       await finishExam(tx, a, rows, settings, now);
     }
   });
@@ -727,6 +767,8 @@ export async function interruptExam(
   await db.transaction(async (tx) => {
     const s = await settle(tx, own.id, settings, now);
     if (s.a.status !== 'in_progress') throw new CourseError('assessment_closed');
+    // The last answer is in and being graded: the attempt is not interrupted, it is about to end.
+    if (s.grading) return;
     const interruptions = s.a.interruptions + 1;
     const exceeded = interruptions > settings.maxInterruptions;
     const why = interruptReason.parse(reason);
