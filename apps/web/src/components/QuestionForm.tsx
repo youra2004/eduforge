@@ -16,14 +16,20 @@ export function QuestionForm({
   busy,
   submitLabel,
   onSubmit,
+  initial,
+  onChange,
 }: {
   question: StudentQuestion;
   busy: boolean;
   submitLabel: string;
   onSubmit: (answer: { optionIndex: number } | { text: string }) => void;
+  /** An answer saved earlier (the exam's autosave), shown again after a reload. */
+  initial?: { optionIndex?: number; text?: string } | null;
+  /** Called on every edit, for autosave. */
+  onChange?: (answer: { optionIndex: number } | { text: string }) => void;
 }) {
-  const [choice, setChoice] = useState<number | null>(null);
-  const [text, setText] = useState('');
+  const [choice, setChoice] = useState<number | null>(initial?.optionIndex ?? null);
+  const [text, setText] = useState(initial?.text ?? '');
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -46,7 +52,10 @@ export function QuestionForm({
                 type="radio"
                 name="option"
                 checked={choice === i}
-                onChange={() => setChoice(i)}
+                onChange={() => {
+                  setChoice(i);
+                  onChange?.({ optionIndex: i });
+                }}
               />
               {option}
             </label>
@@ -58,7 +67,10 @@ export function QuestionForm({
           <textarea
             rows={question.kind === 'open' ? 5 : 2}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              onChange?.({ text: e.target.value });
+            }}
           />
         </label>
       )}

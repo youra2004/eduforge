@@ -42,7 +42,18 @@ export default async function Page() {
                 <td>
                   пройдено {c.nodesPassed} з {c.nodesTotal}
                 </td>
-                <td>{c.status === 'completed' ? 'Курс пройдено' : 'У процесі'}</td>
+                <td>
+                  {c.status === 'completed' ? (
+                    <>
+                      Курс пройдено ·{' '}
+                      <Link href={`/courses/${c.versionId}/exam`} data-testid="exam-link">
+                        Іспит
+                      </Link>
+                    </>
+                  ) : (
+                    'У процесі'
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
