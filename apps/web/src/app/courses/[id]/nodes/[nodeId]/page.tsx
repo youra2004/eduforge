@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import {
   AuthError,
   CourseError,
+  experimentContext,
+  experimentSettings,
   getProgress,
   getVersionGraph,
   learningSettings,
@@ -11,6 +13,7 @@ import {
   loadConfig,
 } from '@eduforge/core';
 import { NodeLearning } from '@/components/NodeLearning';
+import { NodeTracker } from '@/components/NodeTracker';
 import { ContentEditor } from '@/components/ContentEditor';
 import { Markdown } from '@/components/Markdown';
 import { QuestionBank, type BankQuestion } from '@/components/QuestionBank';
@@ -39,7 +42,12 @@ export default async function NodePage({
   if (!node) notFound();
   const opened = await listNodeContent(db, user, nodeId).catch((err) => {
     // The server refuses a locked node; the student gets a reason, not a 404.
-    if (err instanceof CourseError && (err.code === 'node_locked' || err.code === 'not_enrolled')) {
+    if (
+      err instanceof CourseError &&
+      (err.code === 'node_locked' ||
+        err.code === 'not_enrolled' ||
+        err.code === 'experiment_step_not_allowed')
+    ) {
       return err.code;
     }
     return orNotFound(err);
@@ -54,7 +62,9 @@ export default async function NodePage({
         <p className="error">
           {opened === 'node_locked'
             ? 'Цей вузол ще закритий: спочатку пройдіть усі вузли, від яких він залежить.'
-            : 'Щоб відкрити вузол, запишіться на курс.'}
+            : opened === 'experiment_step_not_allowed'
+              ? 'Матеріали модуля відкриті лише під час навчання: після його завершення вони закриваються до кінця дослідження.'
+              : 'Щоб відкрити вузол, запишіться на курс.'}
         </p>
       </div>
     );
@@ -62,6 +72,7 @@ export default async function NodePage({
   const { items, canEdit } = opened;
   const now = new Date();
   const mine = (await getProgress(db, user, id, now))?.find((p) => p.nodeId === nodeId);
+  const study = await experimentContext(db, user.id, id);
   // Questions carry answer keys, so only the course's author, admins and experts get them.
   const bank = await listNodeQuestions(db, user, nodeId).catch((err) => {
     if (err instanceof AuthError) return null;
@@ -94,6 +105,7 @@ export default async function NodePage({
               <VideoPlayer
                 src={item.videoStorageKey ? `/api/media/${item.videoStorageKey}` : item.videoUrl!}
                 title={item.title}
+                track={mine ? { nodeId, contentItemId: item.id } : undefined}
               />
               <aside className="transcript" data-testid="transcript">
                 <h3>Транскрипт</h3>
@@ -113,7 +125,11 @@ export default async function NodePage({
         </article>
       ))}
       {mine && (
+        <NodeTracker nodeId={nodeId} heartbeatSeconds={experimentSettings().heartbeatSeconds} />
+      )}
+      {mine && (
         <NodeLearning
+          control={study?.condition === 'control'}
           nodeId={nodeId}
           state={mine.state}
           roundNo={mine.roundNo}

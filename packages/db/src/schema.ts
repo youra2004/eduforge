@@ -624,3 +624,51 @@ export const tutorMessages = pgTable(
 
 export type TutorSession = typeof tutorSessions.$inferSelect;
 export type TutorMessage = typeof tutorMessages.$inferSelect;
+
+// Experiment (DATA_MODEL.md section 13, RESEARCH.md). `code` is the pseudonym: it is all the export shows of a person.
+export const orderVariants = ['A_then_B', 'B_then_A'] as const;
+export type OrderVariant = (typeof orderVariants)[number];
+export const experimentModules = ['A', 'B'] as const;
+export type ExperimentModule = (typeof experimentModules)[number];
+export const experimentConditions = ['method', 'control'] as const;
+export type ExperimentCondition = (typeof experimentConditions)[number];
+
+export const experimentParticipants = pgTable(
+  'experiment_participants',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => users.id),
+    code: text('code').notNull().unique(),
+    consentAt: timestamp('consent_at', { withTimezone: true }).notNull().defaultNow(),
+    orderVariant: text('order_variant').$type<OrderVariant>().notNull(),
+  },
+  (t) => [
+    check(
+      'experiment_participants_order_check',
+      sql`${t.orderVariant} IN ('A_then_B', 'B_then_A')`,
+    ),
+  ],
+);
+
+export const experimentAssignments = pgTable(
+  'experiment_assignments',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => experimentParticipants.userId),
+    module: text('module').$type<ExperimentModule>().notNull(),
+    condition: text('condition').$type<ExperimentCondition>().notNull(),
+    period: smallint('period').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.module] }),
+    check('experiment_assignments_module_check', sql`${t.module} IN ('A', 'B')`),
+    check('experiment_assignments_condition_check', sql`${t.condition} IN ('method', 'control')`),
+    check('experiment_assignments_period_check', sql`${t.period} IN (1, 2)`),
+    unique('experiment_assignments_user_period_unique').on(t.userId, t.period),
+  ],
+);
+
+export type ExperimentParticipant = typeof experimentParticipants.$inferSelect;
+export type ExperimentAssignment = typeof experimentAssignments.$inferSelect;

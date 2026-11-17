@@ -18,3 +18,11 @@ export function examCooldownSeconds(config: {
 }): number {
   return scaleSeconds(config.exam.cooldownSeconds, config.timeScale);
 }
+
+/** Wait between the immediate and the delayed post-test (RESEARCH.md), already scaled for the current TIME_SCALE. */
+export function experimentDelaySeconds(config: {
+  timeScale: number;
+  experiment: { delaySeconds: number };
+}): number {
+  return scaleSeconds(config.experiment.delaySeconds, config.timeScale);
+}

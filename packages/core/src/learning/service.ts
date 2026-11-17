@@ -28,10 +28,11 @@ import { toStudentQuestion } from '../questions/dto';
 import { gradeAnswer } from '../questions/grading';
 import { assertQuestionsInPool } from '../questions/service';
 import { nodeCooldownSeconds } from '../time';
+import { experimentContext, moduleOfVersion } from '../experiment/context';
 import { assembleNodeTest } from './assemble';
 import { assertNodeAccess, currentProgress, findProgress, loadNodeContext } from './access';
 import { bktUpdate, passesNode } from './bkt';
-import { logEvent } from './events';
+import { logEvent, logModuleFinished } from './events';
 import { afterNodeTest, refreshCooldown } from './state';
 
 export interface LearningSettings {
@@ -61,6 +62,28 @@ const student = (user: AuthUser | null) =>
 
 // ---------------------------------------------------------------- enrollment and node states
 
+/** True once the user has a submitted assessment of this kind for the version (experiment tests, M07). */
+async function hasSubmitted(
+  db: Db | Tx,
+  userId: string,
+  versionId: string,
+  kind: Assessment['kind'],
+) {
+  const [row] = await db
+    .select({ id: assessments.id })
+    .from(assessments)
+    .where(
+      and(
+        eq(assessments.userId, userId),
+        eq(assessments.courseVersionId, versionId),
+        eq(assessments.kind, kind),
+        eq(assessments.status, 'submitted'),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
 /**
  * Enrolls the user in a published version and creates a progress row per node: roots are `available`,
  * everything else `locked` (F5-R5). Enrolling twice changes nothing. The version stays theirs for good (D-06).
@@ -68,6 +91,13 @@ const student = (user: AuthUser | null) =>
 export async function enroll(db: Db, user: AuthUser | null, versionId: string) {
   const { version, user: actor } = await loadVersion(db, student(user), versionId);
   if (version.status !== 'published') throw new CourseError('version_not_published');
+  // Study modules (M07): learning starts after the pre-test, and the control condition has no gating (D-30).
+  const study = await experimentContext(db, actor.id, versionId);
+  if (!study && (await moduleOfVersion(db, versionId)))
+    throw new CourseError('experiment_not_joined');
+  if (study && !(await hasSubmitted(db, actor.id, versionId, 'pretest'))) {
+    throw new CourseError('experiment_step_not_allowed');
+  }
   await db.transaction(async (tx) => {
     const [created] = await tx
       .insert(enrollments)
@@ -92,11 +122,13 @@ export async function enroll(db: Db, user: AuthUser | null, versionId: string) {
         ids.map((id) => ({
           userId: actor.id,
           nodeId: id,
-          state: (hasPrereq.has(id) ? 'locked' : 'available') as NodeState,
+          state: (hasPrereq.has(id) && study?.condition !== 'control'
+            ? 'locked'
+            : 'available') as NodeState,
         })),
       );
     }
-    await logEvent(tx, actor.id, 'enrolled', { versionId, nodes: ids.length });
+    await logEvent(tx, actor.id, 'enrolled', { versionId, nodes: ids.length }, versionId);
   });
 }
 
@@ -172,6 +204,10 @@ export async function startNodeTest(
   seed = randomInt(1, 2 ** 31),
 ) {
   const { version, user: actor } = await loadNodeContext(db, student(user), nodeId);
+  // The control condition has no node tests and so no gating (D-30); the server refuses, whatever the client shows.
+  if ((await experimentContext(db, actor.id, version.id))?.condition === 'control') {
+    throw new CourseError('node_test_disabled');
+  }
   const id = await db.transaction(async (tx) => {
     const [locked] = await tx
       .select()
@@ -274,19 +310,25 @@ export async function startNodeTest(
         cooldownUntil: null,
       })
       .where(and(eq(nodeProgress.userId, actor.id), eq(nodeProgress.nodeId, nodeId)));
-    await logEvent(tx, actor.id, 'node_test_started', {
-      nodeId,
-      assessmentId: created!.id,
-      roundNo: p.roundNo,
-      attemptNo: p.attemptsInRound + 1,
-      questions: assembly.questionIds.length,
-    });
+    await logEvent(
+      tx,
+      actor.id,
+      'node_test_started',
+      {
+        nodeId,
+        assessmentId: created!.id,
+        roundNo: p.roundNo,
+        attemptNo: p.attemptsInRound + 1,
+        questions: assembly.questionIds.length,
+      },
+      version.id,
+    );
     return created!.id;
   });
   return getAssessment(db, actor, id, settings, now);
 }
 
-async function loadOwnAssessment(db: Db | Tx, user: AuthUser, assessmentId: string) {
+export async function loadOwnAssessment(db: Db | Tx, user: AuthUser, assessmentId: string) {
   const [row] = z.uuid().safeParse(assessmentId).success
     ? await db.select().from(assessments).where(eq(assessments.id, assessmentId))
     : [];
@@ -316,8 +358,11 @@ export async function getAssessment(
   const finished = a.status !== 'in_progress';
   const progress = a.nodeId ? await findProgress(db, actor.id, a.nodeId) : undefined;
   const view = progress ? currentProgress(progress, now) : undefined;
+  // Study tests (M07) give no feedback at all: no verdicts and no result, only "submitted".
+  const feedback = a.kind === 'node_test';
   return {
     id: a.id,
+    kind: a.kind,
     nodeId: a.nodeId,
     versionId: a.courseVersionId,
     status: a.status,
@@ -329,22 +374,23 @@ export async function getAssessment(
       ord: item.ord,
       answered: item.answeredAt !== null,
       // Verdicts only after the test is over (F5-R3 retries draw new questions, but keep the test honest).
-      isCorrect: finished ? item.isCorrect : null,
+      isCorrect: finished && feedback ? item.isCorrect : null,
       question: toStudentQuestion(question),
     })),
-    result: finished
-      ? {
-          passed: a.status === 'passed',
-          scorePct: a.scorePct,
-          perSkill: a.perSkill ?? [],
-          threshold: settings.passThreshold,
-          node: view && {
-            state: view.state,
-            attemptsInRound: view.attemptsInRound,
-            cooldownUntil: view.cooldownUntil,
-          },
-        }
-      : null,
+    result:
+      finished && feedback
+        ? {
+            passed: a.status === 'passed',
+            scorePct: a.scorePct,
+            perSkill: a.perSkill ?? [],
+            threshold: settings.passThreshold,
+            node: view && {
+              state: view.state,
+              attemptsInRound: view.attemptsInRound,
+              cooldownUntil: view.cooldownUntil,
+            },
+          }
+        : null,
   };
 }
 
@@ -364,6 +410,7 @@ export async function answerItem(
 ) {
   const actor = student(user);
   const a = await loadOwnAssessment(db, actor, assessmentId);
+  if (a.kind !== 'node_test') throw new CourseError('assessment_not_found'); // study tests: `answerAssessment`
   if (a.status !== 'in_progress') throw new CourseError('assessment_closed');
   const [row] = z.uuid().safeParse(itemId).success
     ? await db
@@ -442,16 +489,28 @@ export async function answerItem(
       pAfter,
       at: now,
     });
-    await logEvent(tx, actor.id, 'question_answered', {
-      assessmentId: a.id,
-      questionId: row.question.id,
-      skillId: row.question.skillId,
-      isCorrect: grade.isCorrect,
-      score: grade.score,
-      pBefore: mastery!.pKnown,
-      pAfter,
-    });
-    await logEvent(tx, actor.id, 'mastery_updated', { skillId: row.question.skillId, pAfter });
+    await logEvent(
+      tx,
+      actor.id,
+      'question_answered',
+      {
+        assessmentId: a.id,
+        questionId: row.question.id,
+        skillId: row.question.skillId,
+        isCorrect: grade.isCorrect,
+        score: grade.score,
+        pBefore: mastery!.pKnown,
+        pAfter,
+      },
+      a.courseVersionId,
+    );
+    await logEvent(
+      tx,
+      actor.id,
+      'mastery_updated',
+      { skillId: row.question.skillId, pAfter },
+      a.courseVersionId,
+    );
 
     const [{ open }] = (await tx
       .select({ open: sql<number>`count(*)::int` })
@@ -532,20 +591,29 @@ async function finishNodeTest(tx: Tx, a: Assessment, settings: LearningSettings,
       passedAt: passed ? now : null,
     })
     .where(and(eq(nodeProgress.userId, a.userId), eq(nodeProgress.nodeId, nodeId)));
-  await logEvent(tx, a.userId, 'node_test_submitted', {
-    nodeId,
-    assessmentId: a.id,
-    passed,
-    scorePct,
-    roundNo: a.roundNo,
-    attemptNo: a.attemptNo,
-    perSkill: perSkill.map((s) => ({ skillId: s.skillId, pKnown: s.pKnown })),
-  });
-  if (next.state === 'cooldown') {
-    await logEvent(tx, a.userId, 'cooldown_started', {
+  await logEvent(
+    tx,
+    a.userId,
+    'node_test_submitted',
+    {
       nodeId,
-      until: next.cooldownUntil?.toISOString(),
-    });
+      assessmentId: a.id,
+      passed,
+      scorePct,
+      roundNo: a.roundNo,
+      attemptNo: a.attemptNo,
+      perSkill: perSkill.map((s) => ({ skillId: s.skillId, pKnown: s.pKnown })),
+    },
+    a.courseVersionId,
+  );
+  if (next.state === 'cooldown') {
+    await logEvent(
+      tx,
+      a.userId,
+      'cooldown_started',
+      { nodeId, until: next.cooldownUntil?.toISOString() },
+      a.courseVersionId,
+    );
   }
   if (passed) await unlockDependents(tx, a.userId, a.courseVersionId, nodeId, now);
 }
@@ -584,7 +652,7 @@ async function unlockDependents(
       )
       .returning({ id: nodeProgress.nodeId });
     if (unlocked.length > 0)
-      await logEvent(tx, userId, 'node_unlocked', { nodeId: id, by: passedNodeId });
+      await logEvent(tx, userId, 'node_unlocked', { nodeId: id, by: passedNodeId }, versionId);
   }
   const [rest] = await tx
     .select({ n: sql<number>`count(*)::int` })
@@ -602,7 +670,8 @@ async function unlockDependents(
       .update(enrollments)
       .set({ status: 'completed', completedAt: now })
       .where(and(eq(enrollments.userId, userId), eq(enrollments.courseVersionId, versionId)));
-    await logEvent(tx, userId, 'course_completed', { versionId });
+    await logEvent(tx, userId, 'course_completed', { versionId }, versionId);
+    await logModuleFinished(tx, userId, versionId);
   }
 }
 
@@ -651,7 +720,7 @@ export async function answerPractice(
   answer: unknown,
   settings: LearningSettings,
 ) {
-  const { actor } = await assertNodeAccess(db, student(user), nodeId);
+  const { actor, version } = await assertNodeAccess(db, student(user), nodeId);
   const [q] = z.uuid().safeParse(questionId).success
     ? await db
         .select()
@@ -672,11 +741,12 @@ export async function answerPractice(
     q,
     answer,
   );
-  await logEvent(db, actor.id, 'practice_answered', {
-    nodeId,
-    questionId,
-    skillId: q.skillId,
-    isCorrect: grade.isCorrect,
-  });
+  await logEvent(
+    db,
+    actor.id,
+    'practice_answered',
+    { nodeId, questionId, skillId: q.skillId, isCorrect: grade.isCorrect },
+    version.id,
+  );
   return { isCorrect: grade.isCorrect, score: grade.score };
 }

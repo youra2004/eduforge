@@ -29,6 +29,11 @@ const envSchema = z
     TUTOR_RATE_PER_MINUTE: count(6),
     TUTOR_DAILY_TOKEN_BUDGET: count(60000),
 
+    EXPERIMENT_COURSE_A: z.preprocess(blankToUndefined, z.string().min(1).default('experiment-a')),
+    EXPERIMENT_COURSE_B: z.preprocess(blankToUndefined, z.string().min(1).default('experiment-b')),
+    EXPERIMENT_DELAY_SECONDS: seconds(7 * 24 * 60 * 60),
+    EXPERIMENT_HEARTBEAT_SECONDS: seconds(30),
+
     POOL_NODE_MIN_PER_SKILL: count(4),
     POOL_EXAM_MIN_PER_SKILL: count(3),
     OPEN_PASS_THRESHOLD: fraction(0.7),
@@ -83,6 +88,12 @@ function toConfig(env: z.infer<typeof envSchema>) {
     tutor: {
       ratePerMinute: env.TUTOR_RATE_PER_MINUTE,
       dailyTokenBudget: env.TUTOR_DAILY_TOKEN_BUDGET,
+    },
+    experiment: {
+      // The courses (by slug) that are topic A and topic B of the study (D-30).
+      courseSlugs: { A: env.EXPERIMENT_COURSE_A, B: env.EXPERIMENT_COURSE_B },
+      delaySeconds: env.EXPERIMENT_DELAY_SECONDS,
+      heartbeatSeconds: env.EXPERIMENT_HEARTBEAT_SECONDS,
     },
     questions: {
       nodeMinPerSkill: env.POOL_NODE_MIN_PER_SKILL,

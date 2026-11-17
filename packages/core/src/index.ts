@@ -6,3 +6,4 @@ export * from './content';
 export * from './questions';
 export * from './learning';
 export * from './tutor';
+export * from './experiment';

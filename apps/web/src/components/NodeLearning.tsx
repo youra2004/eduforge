@@ -14,6 +14,8 @@ export interface NodeLearningProps {
   /** ISO time the pause ends, and the server's "now" when the page was built, so the client never uses its own clock. */
   cooldownUntil: string | null;
   serverNow: string;
+  /** Study control condition (D-30): no node test, no tutor; only free self-check practice. */
+  control?: boolean;
 }
 
 async function call<T>(url: string, init?: RequestInit): Promise<{ data?: T; error?: string }> {
@@ -89,18 +91,18 @@ export function NodeLearning(p: NodeLearningProps) {
   const canTest = p.state === 'available' || p.state === 'in_progress';
   return (
     <section className="learning" data-testid="node-learning">
-      <h2>Тест вузла</h2>
-      {p.state === 'passed' && (
+      {!p.control && <h2>Тест вузла</h2>}
+      {!p.control && p.state === 'passed' && (
         <p data-testid="node-state-note">Вузол пройдено. Наступні вузли розблоковано.</p>
       )}
-      {p.state === 'cooldown' && p.cooldownUntil && (
+      {!p.control && p.state === 'cooldown' && p.cooldownUntil && (
         <p data-testid="cooldown-note" className="error">
           Обидві спроби раунду {p.roundNo} невдалі. Пауза ще{' '}
           {remaining(p.cooldownUntil, p.serverNow)}; потім почнеться новий раунд. Повторіть матеріал
           і скористайтесь практикою нижче.
         </p>
       )}
-      {canTest && (
+      {!p.control && canTest && (
         <>
           <p className="muted" data-testid="attempt-note">
             Раунд {p.roundNo}, спроба {Math.min(p.attemptsInRound + 1, p.attemptsPerRound)} з{' '}
@@ -116,7 +118,7 @@ export function NodeLearning(p: NodeLearningProps) {
         </>
       )}
 
-      <h2>Практика</h2>
+      <h2>{p.control ? 'Самоперевірка' : 'Практика'}</h2>
       <p className="hint">
         Вільні вправи без обмежень. Вони не впливають на рівень навичок і прогрес.
       </p>
@@ -146,7 +148,7 @@ export function NodeLearning(p: NodeLearningProps) {
               </button>
             </p>
           )}
-          {verdict === false && (
+          {verdict === false && !p.control && (
             <TutorChat
               nodeId={p.nodeId}
               questionId={question.id}
@@ -165,7 +167,7 @@ export function NodeLearning(p: NodeLearningProps) {
           {error}
         </p>
       )}
-      {p.state !== 'locked' && <TutorChat nodeId={p.nodeId} />}
+      {!p.control && p.state !== 'locked' && <TutorChat nodeId={p.nodeId} />}
     </section>
   );
 }

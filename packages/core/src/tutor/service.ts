@@ -19,6 +19,7 @@ import { retrieve } from '../content/retrieve';
 import { CourseError } from '../courses/errors';
 import type { Tx } from '../courses/service';
 import { assertNodeAccess } from '../learning/access';
+import { experimentContext } from '../experiment/context';
 import { logEvent } from '../learning/events';
 import { toStudentQuestion } from '../questions/dto';
 import { answerKeys } from '../questions/schema';
@@ -215,11 +216,15 @@ export async function askTutor(
   const parsed = tutorInput.safeParse(rawInput);
   if (!parsed.success) throw new CourseError('invalid_tutor_input');
   const input = parsed.data;
-  const { actor } = await assertNodeAccess(
+  const { actor, version } = await assertNodeAccess(
     db,
     requireRole(user, 'student', 'author', 'expert', 'admin'),
     nodeId,
   );
+  // The control condition has no tutor (D-30). Checked on the server, so hiding the chat is not what enforces it.
+  if ((await experimentContext(db, actor.id, version.id))?.condition === 'control') {
+    throw new CourseError('tutor_disabled');
+  }
 
   const question = input.questionId ? await loadQuestion(db, nodeId, input.questionId) : null;
   const studentAnswer =
@@ -258,9 +263,17 @@ export async function askTutor(
     await tx
       .insert(tutorMessages)
       .values({ sessionId: id, role: 'student', content: input.message, createdAt: now });
+    const level = chooseLevel(earlier.filter((m) => m.role === 'tutor').length);
+    await logEvent(
+      tx,
+      actor.id,
+      'hint_requested',
+      { nodeId, questionId: question?.id ?? null, sessionId: id, hintLevel: level },
+      version.id,
+    );
     return {
       sessionId: id,
-      level: chooseLevel(earlier.filter((m) => m.role === 'tutor').length),
+      level,
       history: earlier.slice(-HISTORY).map((m) => ({ role: m.role, content: m.content })),
     };
   });
@@ -289,13 +302,19 @@ export async function askTutor(
       createdAt: new Date(now.getTime() + 1),
     })
     .returning({ id: tutorMessages.id });
-  await logEvent(db, actor.id, 'tutor_message', {
-    nodeId,
-    questionId: question?.id ?? null,
-    sessionId,
-    hintLevel: outcome.level,
-    source: outcome.verdict.source,
-  });
+  await logEvent(
+    db,
+    actor.id,
+    'tutor_message',
+    {
+      nodeId,
+      questionId: question?.id ?? null,
+      sessionId,
+      hintLevel: outcome.level,
+      source: outcome.verdict.source,
+    },
+    version.id,
+  );
   return {
     sessionId: sessionId,
     message: {
