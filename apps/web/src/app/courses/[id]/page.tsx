@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   CourseError,
+  getProgress,
   getVersionGraph,
   hasRole,
   loadConfig,
@@ -10,7 +11,8 @@ import {
   poolIssues,
 } from '@eduforge/core';
 import { CourseGraph, type GraphNodeData } from '@/components/CourseGraph';
-import { versionStatusLabels } from '@/lib/messages';
+import { EnrollButton } from '@/components/EnrollButton';
+import { nodeStateLabels, versionStatusLabels } from '@/lib/messages';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 import type { Node } from '@xyflow/react';
@@ -35,7 +37,17 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
       : [];
 
   const layers = nodeLayers(graph);
-  const states = placeholderNodeStates({ nodes: graph.nodes, edges: graph.edges });
+  const progress =
+    graph.version.status === 'published' ? await getProgress(getDb(), user, id) : null;
+  const placeholder = placeholderNodeStates({ nodes: graph.nodes, edges: graph.edges });
+  const mine = new Map(progress?.map((p) => [p.nodeId, p]));
+  const now = Date.now();
+  const stateOf = (nodeId: string): GraphNodeData['state'] =>
+    mine.get(nodeId)?.state ?? placeholder.get(nodeId)!;
+  const noteOf = (nodeId: string) => {
+    const until = mine.get(nodeId)?.cooldownUntil;
+    return until ? `ще ${Math.max(1, Math.ceil((until.getTime() - now) / 60000))} хв` : undefined;
+  };
   const skillName = new Map(graph.skills.map((s) => [s.id, s.name]));
   const layerSize = new Map<number, number>();
   for (const layer of layers.values()) layerSize.set(layer, (layerSize.get(layer) ?? 0) + 1);
@@ -55,7 +67,8 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
         href: `/courses/${id}/nodes/${n.id}`,
         summary: n.summary,
         skillNames: n.skillIds.map((s) => skillName.get(s)!),
-        state: states.get(n.id)!,
+        state: stateOf(n.id),
+        note: noteOf(n.id),
       },
     };
   });
@@ -92,13 +105,26 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
           </ul>
         </details>
       )}
+      {graph.version.status === 'published' && !progress && <EnrollButton versionId={id} />}
+      {progress && (
+        <p className="hint graph-legend" data-testid="graph-legend">
+          {(['available', 'in_progress', 'passed', 'cooldown', 'locked'] as const).map((s) => (
+            <span key={s} className={`legend-chip ${s}`}>
+              {nodeStateLabels[s]}
+            </span>
+          ))}
+          · пройдено {progress.filter((p) => p.state === 'passed').length} з {progress.length}
+        </p>
+      )}
       <CourseGraph
         nodes={flowNodes}
         edges={graph.edges.map((e) => ({ id: `${e.from}-${e.to}`, source: e.from, target: e.to }))}
       />
-      <p className="hint">
-        Стани вузлів умовні: прогрес студента зʼявиться разом із рушієм навчання.
-      </p>
+      {!progress && (
+        <p className="hint">
+          Стани вузлів умовні: прогрес зʼявиться після запису на опублікований курс.
+        </p>
+      )}
     </div>
   );
 }

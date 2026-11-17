@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { AuthError, hasRole, requireRole, type AuthUser } from '../auth/guard';
 import { CourseError } from '../courses/errors';
 import { canEdit, canView, EDITABLE_STATUSES, loadVersion } from '../courses/service';
+import { assertNodeAccess } from '../learning/access';
 import { statVideo, storageKeyPattern } from './storage';
 
 const title = z.string().trim().min(1).max(200);
@@ -85,6 +86,8 @@ async function loadNode(db: Db, user: AuthUser | null, nodeId: string) {
 /** A node's content items in order, with whether the caller may edit them. */
 export async function listNodeContent(db: Db, user: AuthUser | null, nodeId: string) {
   const { version, course, user: actor } = await loadNode(db, user, nodeId);
+  // A student reaches a node's material only when the node is not locked (F5-R5, P1).
+  await assertNodeAccess(db, actor, nodeId);
   const items = await db
     .select()
     .from(contentItems)
@@ -247,16 +250,22 @@ export async function getVideoFile(db: Db, user: AuthUser | null, storageDir: st
   const viewer = requireRole(user, 'student', 'author', 'expert', 'admin');
   const file = await statVideo(storageDir, key); // also rejects keys that are not ours
   const uses = await db
-    .select({ version: courseVersions, authorId: courses.authorId })
+    .select({ nodeId: nodes.id, version: courseVersions, authorId: courses.authorId })
     .from(contentItems)
     .innerJoin(nodes, eq(nodes.id, contentItems.nodeId))
     .innerJoin(courseVersions, eq(courseVersions.id, nodes.courseVersionId))
     .innerJoin(courses, eq(courses.id, courseVersions.courseId))
     .where(and(eq(contentItems.videoStorageKey, key)));
-  if (!uses.some((u) => canView(viewer, u.version, u.authorId))) {
-    throw new CourseError('media_not_found');
+  for (const u of uses) {
+    if (!canView(viewer, u.version, u.authorId)) continue;
+    // A video of a locked node stays closed, like the node's text.
+    const open = await assertNodeAccess(db, viewer, u.nodeId).then(
+      () => true,
+      (err) => (err instanceof CourseError ? false : Promise.reject(err)),
+    );
+    if (open) return file;
   }
-  return file;
+  throw new CourseError('media_not_found');
 }
 
 /** Whether `user` may upload videos at all. */

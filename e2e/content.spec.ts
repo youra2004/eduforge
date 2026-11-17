@@ -146,6 +146,8 @@ test('a student sees published content but no editor; a draft stays hidden', asy
     ],
     { stdio: 'pipe' },
   );
+  // a student must join the course first; the root node is open from the start
+  expect((await page.request.post(`/api/courses/versions/${versionId}/enroll`)).status()).toBe(201);
   await page.goto(`/courses/${versionId}/nodes/${nodeId}`);
   await expect(page.getByTestId('content-item')).toContainText('Секрет чернетки');
   await expect(page.getByTestId('content-editor')).toHaveCount(0);

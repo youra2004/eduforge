@@ -11,16 +11,17 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react';
+import { nodeStateLabels as stateLabels } from '@/lib/messages';
 
 export interface GraphNodeData extends Record<string, unknown> {
   title: string;
   href: string;
   summary: string;
   skillNames: string[];
-  state: 'available' | 'locked';
+  state: 'locked' | 'available' | 'in_progress' | 'passed' | 'cooldown';
+  /** Shown under the state, e.g. how long a pause lasts. */
+  note?: string;
 }
-
-const stateLabels = { available: 'Доступний', locked: 'Заблокований' };
 
 function CourseNode({ data }: NodeProps<Node<GraphNodeData>>) {
   return (
@@ -28,7 +29,10 @@ function CourseNode({ data }: NodeProps<Node<GraphNodeData>>) {
       <Handle type="target" position={Position.Top} isConnectable={false} />
       <a href={data.href}>{data.title}</a>
       <span className="graph-node-skills">{data.skillNames.join(' · ')}</span>
-      <span className="graph-node-state">{stateLabels[data.state]}</span>
+      <span className="graph-node-state" data-testid="graph-node-state">
+        {stateLabels[data.state]}
+        {data.note ? ` · ${data.note}` : ''}
+      </span>
       <Handle type="source" position={Position.Bottom} isConnectable={false} />
     </div>
   );
@@ -36,7 +40,7 @@ function CourseNode({ data }: NodeProps<Node<GraphNodeData>>) {
 
 const nodeTypes = { course: CourseNode };
 
-/** Read-only view of the knowledge graph; a click on a node opens it. Node states are placeholders until progress exists (M05). */
+/** Read-only view of the knowledge graph; a click on a node opens it. The state is the student's progress, or a placeholder for viewers who are not enrolled. */
 export function CourseGraph({
   nodes,
   edges,

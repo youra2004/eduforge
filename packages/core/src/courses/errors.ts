@@ -11,7 +11,15 @@ export type CourseErrorCode =
   | 'media_not_found'
   | 'question_not_found'
   | 'invalid_question'
-  | 'wrong_pool';
+  | 'wrong_pool'
+  | 'not_enrolled'
+  | 'node_locked'
+  | 'node_cooldown'
+  | 'node_passed'
+  | 'test_unavailable'
+  | 'assessment_not_found'
+  | 'assessment_closed'
+  | 'already_answered';
 
 const httpStatus: Record<CourseErrorCode, number> = {
   invalid_course: 422,
@@ -25,6 +33,14 @@ const httpStatus: Record<CourseErrorCode, number> = {
   question_not_found: 404,
   invalid_question: 422,
   wrong_pool: 409,
+  not_enrolled: 403,
+  node_locked: 403,
+  node_cooldown: 409,
+  node_passed: 409,
+  test_unavailable: 409,
+  assessment_not_found: 404,
+  assessment_closed: 409,
+  already_answered: 409,
 };
 
 export class CourseError extends Error {
