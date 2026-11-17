@@ -28,7 +28,7 @@ import { toStudentQuestion } from '../questions/dto';
 import { gradeAnswer } from '../questions/grading';
 import { assertQuestionsInPool } from '../questions/service';
 import { nodeCooldownSeconds } from '../time';
-import { experimentContext } from '../experiment/context';
+import { experimentContext, moduleOfVersion } from '../experiment/context';
 import { assembleNodeTest } from './assemble';
 import { assertNodeAccess, currentProgress, findProgress, loadNodeContext } from './access';
 import { bktUpdate, passesNode } from './bkt';
@@ -93,6 +93,8 @@ export async function enroll(db: Db, user: AuthUser | null, versionId: string) {
   if (version.status !== 'published') throw new CourseError('version_not_published');
   // Study modules (M07): learning starts after the pre-test, and the control condition has no gating (D-30).
   const study = await experimentContext(db, actor.id, versionId);
+  if (!study && (await moduleOfVersion(db, versionId)))
+    throw new CourseError('experiment_not_joined');
   if (study && !(await hasSubmitted(db, actor.id, versionId, 'pretest'))) {
     throw new CourseError('experiment_step_not_allowed');
   }

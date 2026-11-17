@@ -4,6 +4,7 @@ import {
   consents,
   courseVersions,
   createDb,
+  enrollments,
   eventLog,
   experimentAssignments,
   experimentParticipants,
@@ -30,6 +31,7 @@ import { getVersionGraph, importCourse } from '../courses/service';
 import {
   answerPractice,
   enroll,
+  getPracticeQuestion,
   getProgress,
   learningSettings,
   startNodeTest,
@@ -649,6 +651,75 @@ describe('research events (P5)', () => {
   });
 });
 
+describe('closed doors around the learning step', () => {
+  it('opens the material only while learning: not before the pre-test, not after the module is finished', async () => {
+    const user = await participantIn(CONTROL_FIRST);
+    const [n1] = modules.A.nodeIds as [string];
+    expect(
+      await code(recordClientEvent(db, user, { name: 'content_opened', nodeId: n1 }, study)),
+    ).toBe('not_enrolled');
+    await takeStudyTest(user, 'A', 'pretest');
+    await enroll(db, user, modules.A.versionId);
+    expect(
+      await code(recordClientEvent(db, user, { name: 'content_opened', nodeId: n1 }, study)),
+    ).toBe('ok');
+    await finishLearning(db, user, 'A');
+    expect(
+      await code(recordClientEvent(db, user, { name: 'content_opened', nodeId: n1 }, study)),
+    ).toBe('experiment_step_not_allowed');
+    expect(await code(getPracticeQuestion(db, user, n1))).toBe('experiment_step_not_allowed');
+    expect(await code(askTutor(db, tutorDeps, user, n1, { message: 'x' }))).toBe(
+      'experiment_step_not_allowed',
+    );
+  });
+
+  it('applies to a participant who is also an admin: staff rights do not open the material early', async () => {
+    const user = await participantIn(CONTROL_FIRST);
+    const admin: AuthUser = { ...user, roles: ['student', 'admin'] };
+    expect(
+      await code(
+        recordClientEvent(
+          db,
+          admin,
+          { name: 'content_opened', nodeId: modules.A.nodeIds[0]! },
+          study,
+        ),
+      ),
+    ).toBe('not_enrolled');
+  });
+
+  it('keeps people who are not in the study out of the study courses, and refuses joiners who already studied', async () => {
+    const outsider = await makeUser();
+    expect(await code(enroll(db, outsider, modules.A.versionId))).toBe('experiment_not_joined');
+    const early = await makeUser();
+    await db.insert(enrollments).values({ userId: early.id, courseVersionId: modules.B.versionId });
+    expect(await code(joinExperiment(db, early, { consent: true }))).toBe(
+      'experiment_step_not_allowed',
+    );
+    expect(await getParticipation(db, early, study)).toBeNull();
+  });
+});
+
+describe('heartbeats cannot be inflated', () => {
+  it('logs one heartbeat out of a burst of parallel requests', async () => {
+    const user = await participantIn(METHOD_FIRST);
+    await takeStudyTest(user, 'A', 'pretest');
+    await enroll(db, user, modules.A.versionId);
+    const nodeId = modules.A.nodeIds[0]!;
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () =>
+        recordClientEvent(db, user, { name: 'session_heartbeat', nodeId }, study),
+      ),
+    );
+    expect(results.filter((r) => r.logged)).toHaveLength(1);
+    const beats = await db
+      .select()
+      .from(eventLog)
+      .where(and(eq(eventLog.userId, user.id), eq(eventLog.name, 'session_heartbeat')));
+    expect(beats).toHaveLength(1);
+  });
+});
+
 describe('the CSV export', () => {
   it('has no emails, names or user ids, only pseudonyms; and the data is there', async () => {
     const user = await participantIn(CONTROL_FIRST);
@@ -694,7 +765,11 @@ describe('the CSV export', () => {
     expect(
       answers.split('\n').filter((l) => l.startsWith(`${me!.code},A,control,pretest`)),
     ).toHaveLength(6);
+    await db
+      .insert(eventLog)
+      .values({ userId: user.id, name: 'unrelated_event_outside_study', props: {} });
     const events = await exportCsv(db, 'events', config);
+    expect(events).not.toContain('unrelated_event_outside_study');
     expect(events).toContain(`${me!.code},`);
     expect(events).toContain('survey_submitted');
   });

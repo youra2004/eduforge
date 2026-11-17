@@ -3,6 +3,8 @@ import {
   assessmentItems,
   assessments,
   consents,
+  courses,
+  courseVersions,
   enrollments,
   eventLog,
   experimentAssignments,
@@ -15,7 +17,7 @@ import {
   type ExperimentModule,
 } from '@eduforge/db';
 import type { LLMClient } from '@eduforge/llm';
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/guard';
 import { requireRole } from '../auth/guard';
@@ -92,6 +94,20 @@ export async function joinExperiment(
       .from(experimentParticipants)
       .where(eq(experimentParticipants.userId, actor.id));
     if (existing) return;
+    // Someone who has already studied a topic would skip the pre-test's meaning and the gating of the method.
+    const [studied] = await tx
+      .select({ id: enrollments.id })
+      .from(enrollments)
+      .innerJoin(courseVersions, eq(courseVersions.id, enrollments.courseVersionId))
+      .innerJoin(courses, eq(courses.id, courseVersions.courseId))
+      .where(
+        and(
+          eq(enrollments.userId, actor.id),
+          inArray(courses.slug, Object.values(loadConfig().experiment.courseSlugs)),
+        ),
+      )
+      .limit(1);
+    if (studied) throw new CourseError('experiment_step_not_allowed');
     const rows = await tx
       .select({
         orderVariant: experimentParticipants.orderVariant,

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { hasRole, type AuthUser } from '../auth/guard';
 import { CourseError } from '../courses/errors';
 import { canEdit, loadVersion, type Tx } from '../courses/service';
+import { experimentContext } from '../experiment/context';
 import { refreshCooldown } from './state';
 
 /** The node's version, or `course_not_found` for a bad id; visibility is `loadVersion`'s call. */
@@ -44,10 +45,20 @@ export const currentProgress = (row: NodeProgress, now: Date) => ({
  */
 export async function assertNodeAccess(db: Db | Tx, user: AuthUser | null, nodeId: string) {
   const { version, course, user: actor } = await loadNodeContext(db, user, nodeId);
-  if (canEdit(actor, course.authorId) || hasRole(actor, 'admin', 'expert'))
+  // A study participant follows the study's rules whatever their roles (M07): the material is open only while
+  // they are learning, not before the pre-test and not after the post-test (it would inflate the test scores).
+  const study = await experimentContext(db, actor.id, version.id);
+  if (!study && (canEdit(actor, course.authorId) || hasRole(actor, 'admin', 'expert')))
     return { actor, version };
   const progress = await findProgress(db, actor.id, nodeId);
   if (!progress) throw new CourseError('not_enrolled');
+  if (study) {
+    const [enrollment] = await db
+      .select({ status: enrollments.status })
+      .from(enrollments)
+      .where(and(eq(enrollments.userId, actor.id), eq(enrollments.courseVersionId, version.id)));
+    if (enrollment?.status !== 'active') throw new CourseError('experiment_step_not_allowed');
+  }
   if (progress.state === 'locked') throw new CourseError('node_locked');
   return { actor, version };
 }

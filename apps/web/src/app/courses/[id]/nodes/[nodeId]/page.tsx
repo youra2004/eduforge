@@ -42,7 +42,12 @@ export default async function NodePage({
   if (!node) notFound();
   const opened = await listNodeContent(db, user, nodeId).catch((err) => {
     // The server refuses a locked node; the student gets a reason, not a 404.
-    if (err instanceof CourseError && (err.code === 'node_locked' || err.code === 'not_enrolled')) {
+    if (
+      err instanceof CourseError &&
+      (err.code === 'node_locked' ||
+        err.code === 'not_enrolled' ||
+        err.code === 'experiment_step_not_allowed')
+    ) {
       return err.code;
     }
     return orNotFound(err);
@@ -57,7 +62,9 @@ export default async function NodePage({
         <p className="error">
           {opened === 'node_locked'
             ? 'Цей вузол ще закритий: спочатку пройдіть усі вузли, від яких він залежить.'
-            : 'Щоб відкрити вузол, запишіться на курс.'}
+            : opened === 'experiment_step_not_allowed'
+              ? 'Матеріали модуля відкриті лише під час навчання: після його завершення вони закриваються до кінця дослідження.'
+              : 'Щоб відкрити вузол, запишіться на курс.'}
         </p>
       </div>
     );

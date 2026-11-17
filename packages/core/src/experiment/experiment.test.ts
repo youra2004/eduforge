@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mulberry32 } from '../learning/assemble';
 import { assignmentsOf, CELLS, cellIndex, chooseCell } from './assign';
-import { assertNoPii, toCsv } from './export';
+import { activeSeconds, assertNoPii, toCsv } from './export';
 import { moduleStep, type ModuleFacts } from './flow';
 import { normalizedGain } from './gain';
 
@@ -157,5 +157,18 @@ describe('export column check (NFR-2)', () => {
       ],
     });
     expect(csv).toBe(`participant_code,props\nP-1,"{""a"":1,""b"":""x""}"\nP-2,'=1+1\nP-3,\n`);
+  });
+});
+
+describe('activeSeconds (learning time from heartbeats)', () => {
+  const at = (...s: number[]) => s.map((x) => new Date(NOW.getTime() + x * 1000));
+  it('counts the first beat as one interval and each later one by its gap', () => {
+    expect(activeSeconds([], 30)).toBe(0);
+    expect(activeSeconds(at(0), 30)).toBe(30);
+    expect(activeSeconds(at(0, 30, 60), 30)).toBe(90);
+  });
+  it('gives a burst of beats almost nothing, and does not count a long pause', () => {
+    expect(activeSeconds(at(0, 0.1, 0.2, 0.3, 0.4), 30)).toBeCloseTo(30.4);
+    expect(activeSeconds(at(0, 3600), 30)).toBe(90); // the hour away counts as two intervals at most
   });
 });

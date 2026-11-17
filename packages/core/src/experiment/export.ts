@@ -14,7 +14,7 @@ import {
   type ExperimentCondition,
   type ExperimentModule,
 } from '@eduforge/db';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
 import { loadConfig } from '../config';
 import type { GuardVerdict } from '../tutor/service';
 import { normalizedGain } from './gain';
@@ -87,6 +87,18 @@ async function loadStudy(db: Db, config = loadConfig()): Promise<Study> {
   return { people, assignments, moduleOf };
 }
 
+/**
+ * Learning time from heartbeat timestamps: the first beat counts one interval, each later one the gap since the
+ * previous beat, at most two intervals. A burst of beats therefore adds almost nothing, and a long pause is not counted.
+ */
+export function activeSeconds(beats: Date[], interval: number): number {
+  const sorted = [...beats].sort((a, b) => a.getTime() - b.getTime());
+  return sorted.reduce((sum, t, i) => {
+    const gap = i === 0 ? interval : (t.getTime() - sorted[i - 1]!.getTime()) / 1000;
+    return sum + Math.min(gap, 2 * interval);
+  }, 0);
+}
+
 const share = (pct: number | null | undefined) => (pct == null ? null : pct / 100);
 
 async function modulesTable(db: Db, st: Study, config = loadConfig()): Promise<Table> {
@@ -157,8 +169,10 @@ async function modulesTable(db: Db, st: Study, config = loadConfig()): Promise<T
         delayed,
         pre !== null && post !== null ? normalizedGain(pre, post) : null,
         delayed !== null && post !== null ? delayed - post : null,
-        mineEvents.filter((e) => e.name === 'session_heartbeat').length *
+        activeSeconds(
+          mineEvents.filter((e) => e.name === 'session_heartbeat').map((e) => e.ts),
           config.experiment.heartbeatSeconds,
+        ),
         nodeTests.length,
         nodeTests.filter((t) => t.status === 'failed').length,
         tutor.filter((t) => t.userId === userId && st.moduleOf.get(t.versionId) === module).length,
@@ -234,7 +248,13 @@ async function eventsTable(db: Db, st: Study): Promise<Table> {
     ? await db
         .select()
         .from(eventLog)
-        .where(inArray(eventLog.userId, ids))
+        .where(
+          and(
+            inArray(eventLog.userId, ids),
+            // only what happened in the study: events of a study module, and the joining itself
+            or(sql`${eventLog.props} ? 'module'`, eq(eventLog.name, 'experiment_joined')),
+          ),
+        )
         .orderBy(asc(eventLog.id))
     : [];
   return {

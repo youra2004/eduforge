@@ -1,5 +1,5 @@
 import { eventLog, type Db } from '@eduforge/db';
-import { and, desc, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/guard';
 import { requireRole } from '../auth/guard';
@@ -32,23 +32,27 @@ export async function recordClientEvent(
   user: AuthUser | null,
   input: unknown,
   settings: Pick<ExperimentSettings, 'heartbeatSeconds'>,
-  now = new Date(),
 ) {
   const parsed = clientEvent.safeParse(input);
   if (!parsed.success) throw new CourseError('invalid_content');
   const actor = requireRole(user, 'student', 'author', 'expert', 'admin');
   const { version } = await assertNodeAccess(db, actor, parsed.data.nodeId);
   const { name, ...props } = parsed.data;
-  if (name === 'session_heartbeat') {
-    const floor = new Date(now.getTime() - settings.heartbeatSeconds * 0.8 * 1000);
-    const [recent] = await db
+  if (name !== 'session_heartbeat') {
+    await logEvent(db, actor.id, name, props, version.id);
+    return { logged: true };
+  }
+  // The check and the write are one step per user, so a burst of parallel requests logs one heartbeat, not many.
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${'heartbeat:' + actor.id}))`);
+    const floor = new Date(Date.now() - settings.heartbeatSeconds * 0.8 * 1000);
+    const [recent] = await tx
       .select({ id: eventLog.id })
       .from(eventLog)
       .where(and(eq(eventLog.userId, actor.id), eq(eventLog.name, name), gt(eventLog.ts, floor)))
-      .orderBy(desc(eventLog.ts))
       .limit(1);
     if (recent) return { logged: false };
-  }
-  await logEvent(db, actor.id, name, props, version.id);
-  return { logged: true };
+    await logEvent(tx, actor.id, name, props, version.id);
+    return { logged: true };
+  });
 }
