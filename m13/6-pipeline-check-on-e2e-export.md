@@ -26,9 +26,9 @@ Input: `/tmp/m13-e2e-export/modules.csv`. 30 participant-module rows, 15 partici
 
 ## H1–H3. Paired comparison, method vs control
 
-Differences are method − control. The primary test is fixed in advance: Wilcoxon signed-rank when the differences are clearly non-normal (Shapiro p < 0.05), else the paired t-test. Holm correction over the three outcomes. Confidence intervals are bootstrap percentile (5000 resamples, fixed seed).
+Differences are method − control. The primary test is fixed in advance: Wilcoxon signed-rank when the differences are clearly non-normal (Shapiro p < 0.05) or when the t-test is undefined (no spread in the differences), else the paired t-test. Holm correction over the three outcomes. Confidence intervals are bootstrap percentile (5000 resamples, fixed seed).
 
-| Outcome | Pairs | Method mean (SD) | Control mean (SD) | Mean diff [95 % bootstrap CI] | Cohen's d paired [95 % CI] | Primary test: p | p (Holm, 3 outcomes) | All p-values |
+| Outcome | Pairs | Method mean (SD) | Control mean (SD) | Mean diff [95 % bootstrap CI] | Cohen's d paired [95 % CI] | Primary test: p | p (Holm, 1 outcome(s) with a defined p) | All p-values |
 |---|---|---|---|---|---|---|---|---|
 | H1 normalized gain | <3 | too few complete pairs |  |  |  |  |  |  |
 | H2 delayed post-test | <3 | too few complete pairs |  |  |  |  |  |  |
@@ -38,20 +38,22 @@ Differences are method − control. The primary test is fixed in advance: Wilcox
 
 | Item | Pairs | Method mean | Control mean | Diff | Wilcoxon p (uncorrected) |
 |---|---|---|---|---|---|
-| clarity | 12 | 4.00 | 4.00 | +0.00 | 1.000 |
-| help | 12 | 4.00 | 4.00 | +0.00 | 1.000 |
-| effort | 12 | 4.00 | 4.00 | +0.00 | 1.000 |
-| frustration | 12 | 4.00 | 4.00 | +0.00 | 1.000 |
+| clarity | 12 | 4.00 | 4.00 | +0.00 | n/a |
+| help | 12 | 4.00 | 4.00 | +0.00 | n/a |
+| effort | 12 | 4.00 | 4.00 | +0.00 | n/a |
+| frustration | 12 | 4.00 | 4.00 | +0.00 | n/a |
 
-## Order and topic effects
+## Sequence, topic and period effects
 
-### Order effect (A first vs B first)
+### Sequence effect (method first vs control first)
 
-| Order | Participants | Mean of (method − control) gain |
+The standard check of a two-period crossover: if (method − control) differs between the two sequences, carry-over or a period effect is at work. In a two-period design carry-over cannot be separated from the sequence, so this is an indication, not a correction.
+
+| Sequence | Participants | Mean of (method − control) gain |
 |---|---|---|
-| A_then_B | 1 | +0.000 |
+| method first | 1 | +0.000 |
 
-Only one order group present.
+Only one sequence group present.
 
 ### Topic effect (which topic received the method)
 
@@ -76,7 +78,7 @@ No `tutor.csv` next to the data; H4 not analysed.
 ## What this does not show
 
 - Non-random recruitment and a small sample limit generalization (`RESEARCH.md` §5).
-- Carry-over between modules and non-equivalent topics are checked above, not removed.
+- Carry-over cannot be separated from the sequence in a two-period crossover; the sequence, topic and period checks above are indications, not corrections.
 - Proctoring and the certificate are not part of any claim here.
 
 
