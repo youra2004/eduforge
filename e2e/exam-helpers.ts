@@ -56,7 +56,7 @@ export async function publishedCourse(browser: Browser) {
   const nodeRow = await sql<{ id: string }>('SELECT id FROM nodes WHERE course_version_id = $1', [
     versionId,
   ]);
-  return { versionId, nodeId: nodeRow[0]!.id };
+  return { versionId, nodeId: nodeRow[0]!.id, admin };
 }
 
 /** A student who joined the course and has passed every node (the learning part has its own tests). */

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sendJson } from '@/lib/client';
 import { examSkillLevelLabels } from '@/lib/messages';
+import { IssueCertificate } from './IssueCertificate';
 import { ExamProctor, type ProctorView } from './ExamProctor';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
 import { StrikeAppeal } from './StrikeAppeal';
@@ -40,6 +41,7 @@ export interface ExamViewData {
     forever: boolean;
     canAppeal: boolean;
   } | null;
+  certificate: { id: string; revoked: boolean } | null;
   result: {
     passed: boolean;
     scorePct: number | null;
@@ -289,6 +291,21 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
             </li>
           ))}
         </ul>
+        {r.passed && (
+          <div data-testid="exam-certificate">
+            <h2>Сертифікат</h2>
+            {exam.certificate ? (
+              <p>
+                <Link href={`/verify/${exam.certificate.id}`} data-testid="certificate-link">
+                  Відкрити сертифікат
+                </Link>
+                {exam.certificate.revoked && <span className="error"> · відкликано</span>}
+              </p>
+            ) : (
+              <IssueCertificate examId={exam.id} onDone={() => void reload()} />
+            )}
+          </div>
+        )}
         {!r.passed && r.attemptsLeft > 0 && (
           <p data-testid="exam-next">
             Залишилась спроба в цьому раунді. Повторіть матеріал і спробуйте ще раз.

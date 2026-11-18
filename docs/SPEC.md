@@ -246,6 +246,7 @@ Course-version states: `draft → auditing → changes_requested | ready_to_publ
 - **OQ-9.** Whether pairwise comparisons against anchor courses are needed in the audit (v2).
 - **OQ-10.** Exact interpretation of the pause between attempt rounds (D-11).
 - **OQ-11.** Strictness of the BKT threshold. With the defaults (`p_init=0.20`, `learn=0.15`, `slip=0.10`, `guess=0.25`), the sequence "correct, correct, wrong" gives ≈ 0.51 (fail), "correct ×3, wrong" ≈ 0.79 (a narrow fail), and "correct, wrong, correct, correct" ≈ 0.88 (pass). So the outcome depends on order, and one mistake on 3 questions almost always fails the skill. Decide: more questions per skill, higher `p_init`/`learn`, a lower threshold, or accept as is. Calibrate on pilot data in M05.
+- **OQ-12.** Policy for the holder's name in already-issued certificates when an account is deleted (DATA_MODEL §14). The name is inside the signed payload, so it cannot be anonymized without invalidating the signature; options: keep it (the holder agreed to publish it by sharing the link), or revoke and re-issue without a name. There is no account deletion yet; to be decided with the thesis supervisor.
 
 ## 9. Glossary
 

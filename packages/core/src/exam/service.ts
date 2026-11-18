@@ -20,6 +20,7 @@ import { and, asc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/guard';
 import { requireRole } from '../auth/guard';
+import { certificateOfExam, issueCertificate } from '../certificate/service';
 import { loadConfig } from '../config';
 import { CourseError, type CourseErrorCode } from '../courses/errors';
 import type { CourseIssue } from '../courses/graph';
@@ -347,6 +348,7 @@ async function present(db: Db | Tx, s: Settled, settings: ExamSettings, now: Dat
       focusGraceSeconds: settings.proctor.focusGraceSeconds,
     },
     violation,
+    certificate: a.status === 'passed' ? await certificateOfExam(db, a.id) : null,
     // No verdicts per question: the exam pool is not to be learned from (F3-R2).
     result:
       finished && state
@@ -797,7 +799,15 @@ export async function answerExam(
       await finishExam(tx, a, rows, settings, now);
     }
   });
-  return getExam(db, actor, examId, settings, now);
+  const view = await getExam(db, actor, examId, settings, now);
+  // F10: a pass gets its certificate right away. When it cannot (no key, a proctoring flag), the result page offers it later.
+  if (view.status === 'passed' && !view.certificate) {
+    await issueCertificate(db, llm, actor, examId).catch((err) => {
+      if (!(err instanceof CourseError)) console.error('certificate issuance failed', err);
+    });
+    return getExam(db, actor, examId, settings, now);
+  }
+  return view;
 }
 
 const interruptReason = z.enum(['network', 'camera', 'other']).catch('other');
