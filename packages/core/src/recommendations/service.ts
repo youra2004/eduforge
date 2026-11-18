@@ -49,44 +49,47 @@ async function recommendFor(
   settings: RecommendationSettings,
 ): Promise<RecommendationOutcome> {
   const day = dayOf(recommendationDayIndex(now, settings.timeScale));
-  const [today] = await db
-    .select({ id: recommendations.id })
-    .from(recommendations)
-    .where(sql`${recommendations.userId} = ${userId} AND ${recommendations.day} = ${day}`);
-  if (today) return 'already_today';
+  // One run per user at a time (the worker and "run now" can overlap): the loser skips, so there is one LLM call per day.
+  return db.transaction(async (tx) => {
+    const locked = await tx.execute<{ ok: boolean }>(
+      sql`SELECT pg_try_advisory_xact_lock(hashtext(${`recommendations:${userId}`})) AS ok`,
+    );
+    if (!locked.rows[0]!.ok) return 'already_today';
+    const [today] = await tx
+      .select({ id: recommendations.id })
+      .from(recommendations)
+      .where(sql`${recommendations.userId} = ${userId} AND ${recommendations.day} = ${day}`);
+    if (today) return 'already_today';
 
-  const metrics = await computeMetrics(db, userId, now, settings.weakBelow);
-  if (!hasSignal(metrics)) return 'no_data';
-  const hash = metricsHash(metrics);
-  const [last] = await db
-    .select({ hash: recommendations.metricsHash })
-    .from(recommendations)
-    .where(eq(recommendations.userId, userId))
-    .orderBy(desc(recommendations.createdAt))
-    .limit(1);
-  if (last?.hash === hash) return 'unchanged';
+    const metrics = await computeMetrics(tx, userId, now, settings.weakBelow);
+    if (!hasSignal(metrics)) return 'no_data';
+    const hash = metricsHash(metrics);
+    const [last] = await tx
+      .select({ hash: recommendations.metricsHash })
+      .from(recommendations)
+      .where(eq(recommendations.userId, userId))
+      .orderBy(desc(recommendations.createdAt))
+      .limit(1);
+    if (last?.hash === hash) return 'unchanged';
 
-  // One logged LLM call; a failure stores nothing, so the next run tries again.
-  const { data, runId } = await llm.generate({
-    purpose: 'recommendation',
-    promptVersion: RECOMMENDATION_PROMPT_VERSION,
-    prompt: recommendationPrompt(metrics),
-    schema: tipsSchema,
-    subject: { type: 'user', id: userId },
-  });
-  const [row] = await db
-    .insert(recommendations)
-    .values({
+    // One logged LLM call (the log has its own connection); a failure stores nothing, so the next run tries again.
+    const { data, runId } = await llm.generate({
+      purpose: 'recommendation',
+      promptVersion: RECOMMENDATION_PROMPT_VERSION,
+      prompt: recommendationPrompt(metrics),
+      schema: tipsSchema,
+      subject: { type: 'user', id: userId },
+    });
+    await tx.insert(recommendations).values({
       userId,
       day,
       items: data.tips,
       metricsHash: hash,
       llmRunId: runId,
       createdAt: now,
-    })
-    .onConflictDoNothing()
-    .returning({ id: recommendations.id });
-  return row ? 'created' : 'already_today';
+    });
+    return 'created';
+  });
 }
 
 /**

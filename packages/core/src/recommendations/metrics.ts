@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Db } from '@eduforge/db';
+import type { Tx } from '../courses/service';
 import { sql } from 'drizzle-orm';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,7 +29,7 @@ export interface Metrics {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const iso = (d: Date) => d.toISOString();
 
-async function windowMetrics(db: Db, userId: string, now: Date, days: number) {
+async function windowMetrics(db: Db | Tx, userId: string, now: Date, days: number) {
   const since = iso(new Date(now.getTime() - days * DAY_MS));
   const upTo = iso(now);
   const trend = await db.execute<{ trend: number | null; n: number }>(sql`
@@ -58,7 +59,7 @@ async function windowMetrics(db: Db, userId: string, now: Date, days: number) {
  * situation gives the same numbers, which is what `metricsHash` relies on. No answers, no keys, no personal data.
  */
 export async function computeMetrics(
-  db: Db,
+  db: Db | Tx,
   userId: string,
   now: Date,
   weakBelow: number,
@@ -89,8 +90,11 @@ export async function computeMetrics(
     FROM assessments a
     JOIN course_versions cv ON cv.id = a.course_version_id
     LEFT JOIN nodes n ON n.id = a.node_id
-    LEFT JOIN node_progress np ON np.user_id = a.user_id AND np.node_id = a.node_id
-    WHERE coalesce(np.state::text, '') <> 'passed' AND a.user_id = ${userId} AND a.kind IN ('node_test', 'exam') AND a.status = 'failed'
+    WHERE NOT EXISTS (
+        SELECT 1 FROM assessments p
+        WHERE p.user_id = a.user_id AND p.course_version_id = a.course_version_id AND p.kind = a.kind
+          AND p.node_id IS NOT DISTINCT FROM a.node_id AND p.status = 'passed' AND p.started_at > a.started_at)
+      AND a.user_id = ${userId} AND a.kind IN ('node_test', 'exam') AND a.status = 'failed'
       AND a.started_at >= ${since30}::timestamptz AND a.started_at <= ${iso(now)}::timestamptz
     GROUP BY 1, 2
     ORDER BY failed DESC, node

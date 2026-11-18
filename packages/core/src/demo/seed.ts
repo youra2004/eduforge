@@ -21,7 +21,7 @@ import {
 import { eq, inArray } from 'drizzle-orm';
 import { hashPassword } from '../auth/password';
 import { loadConfig } from '../config';
-import { importCourse } from '../courses/service';
+import { importCourse, type Tx } from '../courses/service';
 import { bktUpdate, passesNode } from '../learning/bkt';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -84,7 +84,7 @@ export interface DemoSeedResult {
  * "[ДЕМО]" in the course title. `suffix` makes the emails and the slug unique (tests, repeated runs).
  */
 export async function seedDemo(
-  db: Db,
+  database: Db,
   opts: { password: string; suffix?: string; now?: Date },
 ): Promise<DemoSeedResult> {
   const suffix = opts.suffix ?? '';
@@ -93,11 +93,25 @@ export async function seedDemo(
   const adminEmail = email('admin');
   const studentEmails = personas.map((p) => email(p.key));
 
-  const [existing] = await db
+  const [existing] = await database
     .select({ id: users.id })
     .from(users)
     .where(eq(users.email, adminEmail));
   if (existing) return { created: false, adminEmail, studentEmails };
+  // All or nothing: a failure half way must not leave an admin that makes the next run say "already seeded".
+  return database.transaction((tx) =>
+    seedAll(tx, { password: opts.password, suffix, now }, adminEmail, studentEmails),
+  );
+}
+
+async function seedAll(
+  db: Tx,
+  opts: { password: string; suffix: string; now: Date },
+  adminEmail: string,
+  studentEmails: string[],
+): Promise<DemoSeedResult> {
+  const { suffix, now } = opts;
+  const email = (key: string) => `demo-${key}${suffix}@demo.eduforge.local`;
 
   const config = loadConfig();
   const { pInit, learn, slip } = config.bkt;

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import {
+  assessments,
   courseVersions,
   createDb,
   llmRuns,
@@ -233,6 +234,68 @@ describe('the daily job on the Mock LLM (F7-R2)', () => {
     expect(run.counts.failed).toBeGreaterThan(0);
     const rows = await db.select().from(recommendations).where(eq(recommendations.userId, u!.id));
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe('review fixes', () => {
+  it('a failed exam that was passed afterwards is not a standing failure', async () => {
+    const [u] = await db
+      .insert(users)
+      .values({ email: `exam-${Date.now()}@test.local`, passwordHash: 'x', displayName: 'Е' })
+      .returning({ id: users.id });
+    const base = {
+      userId: u!.id,
+      kind: 'exam' as const,
+      courseVersionId: seeded.versionId!,
+      questionSetSeed: 1,
+    };
+    await db
+      .insert(assessments)
+      .values({ ...base, status: 'failed', startedAt: new Date(Date.now() - 3 * DAY) });
+    let m = await computeMetrics(db, u!.id, new Date(), 0.8);
+    expect(m.failures).toEqual([expect.objectContaining({ node: 'Підсумковий іспит', failed: 1 })]);
+    await db
+      .insert(assessments)
+      .values({ ...base, status: 'passed', startedAt: new Date(Date.now() - 1 * DAY) });
+    m = await computeMetrics(db, u!.id, new Date(), 0.8);
+    expect(m.failures).toEqual([]);
+  });
+
+  it('two runs at the same moment make one LLM call per student', async () => {
+    const [u] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, `demo-iryna${SUFFIX}@demo.eduforge.local`));
+    await db.delete(recommendations).where(eq(recommendations.userId, u!.id));
+    const runsOf = async () =>
+      (await db.select().from(llmRuns).where(eq(llmRuns.subjectId, u!.id))).length;
+    const before = await runsOf();
+    const at = new Date(Date.now() + 60 * DAY);
+    const [a, b] = await Promise.all([
+      runRecommendations(db, llm, at, settings),
+      runRecommendations(db, llm, at, settings),
+    ]);
+    const created = [a, b].filter((r) => outcomeOf(r, 'iryna') === 'created');
+    expect(created).toHaveLength(1);
+    expect((await runsOf()) - before).toBe(1);
+    const rows = await db.select().from(recommendations).where(eq(recommendations.userId, u!.id));
+    expect(rows).toHaveLength(1);
+  });
+
+  it('a failed seed leaves nothing behind, so it can be run again', async () => {
+    await db.insert(users).values({
+      email: 'demo-maksym-half@demo.eduforge.local',
+      passwordHash: 'x',
+      displayName: 'Зайнятий email',
+    });
+    await expect(
+      seedDemo(db, { password: 'correct horse battery', suffix: '-half' }),
+    ).rejects.toThrow();
+    const left = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, 'demo-admin-half@demo.eduforge.local'));
+    expect(left).toEqual([]);
   });
 });
 
