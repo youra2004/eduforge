@@ -92,6 +92,8 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The time a question started with, to draw how much of it is left.
+  const budget = useRef({ id: '', ms: 1 });
   const refreshing = useRef(false);
   // The camera gate is passed in this page (a reload asks for it again).
   const [proctorActive, setProctorActive] = useState(false);
@@ -380,6 +382,10 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
     );
   }
   const questionLeft = Date.parse(exam.current.deadlineAt) - now;
+  if (budget.current.id !== exam.current.itemId) {
+    budget.current = { id: exam.current.itemId, ms: Math.max(questionLeft, 1) };
+  }
+  const timeLeftPct = Math.max(0, Math.min(100, (questionLeft / budget.current.ms) * 100));
   return (
     <div data-testid="exam-runner">
       <PageHeader
@@ -409,6 +415,12 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
           </strong>
         </span>
       </p>
+      <span className="time-bar" aria-hidden>
+        <span
+          className={questionLeft < 15000 ? 'urgent' : undefined}
+          style={{ width: `${timeLeftPct}%` }}
+        />
+      </span>
       {offline && (
         <p className="error" role="alert" data-testid="exam-offline">
           Зʼєднання втрачено. Коли воно відновиться, іспит буде перервано без штрафу.

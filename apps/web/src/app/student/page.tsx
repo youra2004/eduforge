@@ -3,6 +3,8 @@ import {
   experimentSettings,
   getOwnRecommendations,
   getParticipation,
+  getProgress,
+  getVersionGraph,
   isDemoUser,
   listEnrollments,
   listOwnCertificates,
@@ -23,6 +25,29 @@ export default async function Page() {
   const tips = await getOwnRecommendations(getDb(), user);
   const demo = await isDemoUser(getDb(), user.id);
   const study = await getParticipation(getDb(), user, experimentSettings());
+
+  // Where to continue: the first unfinished course, at the node being learned or the first open one.
+  const unfinished = mine.find((c) => c.status !== 'completed');
+  let next: { versionId: string; title: string; nodeId: string; nodeTitle: string } | null = null;
+  if (unfinished) {
+    const progress = await getProgress(getDb(), user, unfinished.versionId);
+    const pick =
+      progress?.find((p) => p.state === 'in_progress') ??
+      progress?.find((p) => p.state === 'available');
+    if (pick) {
+      const graph = await getVersionGraph(getDb(), user, unfinished.versionId);
+      const node = graph.nodes.find((n) => n.id === pick.nodeId);
+      if (node) {
+        next = {
+          versionId: unfinished.versionId,
+          title: unfinished.title,
+          nodeId: node.id,
+          nodeTitle: node.title,
+        };
+      }
+    }
+  }
+  const nodesPassed = mine.reduce((sum, c) => sum + c.nodesPassed, 0);
   return (
     <div className="page">
       <PageHeader title="Студент" lead="Ваші курси, поради щодо навчання та сертифікати." />
@@ -37,6 +62,44 @@ export default async function Page() {
           Нагадування: настав час пройти відкладений тест.{' '}
           <Link href="/experiment">До дослідження</Link>
         </p>
+      )}
+
+      {mine.length > 0 && (
+        <div className="tiles" data-testid="student-overview">
+          {[
+            { n: mine.length, what: 'курсів' },
+            { n: nodesPassed, what: 'вузлів пройдено' },
+            { n: certs.length, what: 'сертифікатів' },
+          ].map((t) => (
+            <div key={t.what} className="card tile">
+              <span
+                className="num count-up"
+                style={{ '--n': t.n } as React.CSSProperties}
+                role="img"
+                aria-label={String(t.n)}
+              />
+              <span className="what">{t.what}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {next && unfinished && (
+        <div className="card continue" data-testid="continue-card">
+          <div>
+            <span className="meta">Продовжити навчання · {next.title}</span>
+            <h2>{next.nodeTitle}</h2>
+            <Progress
+              value={unfinished.nodesPassed}
+              total={unfinished.nodesTotal}
+              label="пройдено"
+            />
+          </div>
+          <Link href={`/courses/${next.versionId}/nodes/${next.nodeId}`} className="btn lg">
+            Продовжити
+            <Icon name="arrow-right" size={16} />
+          </Link>
+        </div>
       )}
 
       <section className="section" style={{ marginTop: 0 }}>
