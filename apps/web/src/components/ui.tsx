@@ -106,3 +106,36 @@ export function Progress({ value, total, label }: { value: number; total: number
     </div>
   );
 }
+
+const pipeline = ['Чернетка', 'Аудит', 'Готово до публікації', 'Опубліковано'] as const;
+const pipelineStep: Record<string, number> = {
+  draft: 0,
+  changes_requested: 0,
+  auditing: 1,
+  expert_review: 1,
+  ready_to_publish: 2,
+  published: 3,
+  archived: 4,
+};
+
+/** Where a course version is on its way to publication, for the people who own it. */
+export function VersionPipeline({ status }: { status: string }) {
+  const here = pipelineStep[status] ?? 0;
+  return (
+    <ol
+      className="steps pipeline"
+      aria-label="Шлях курсу до публікації"
+      data-testid="version-pipeline"
+    >
+      {pipeline.map((label, i) => (
+        <li
+          key={label}
+          className={i < here ? 'done' : i === here ? 'current' : ''}
+          aria-current={i === here ? 'step' : undefined}
+        >
+          {label}
+        </li>
+      ))}
+    </ol>
+  );
+}

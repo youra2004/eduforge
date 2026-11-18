@@ -21,7 +21,7 @@ import { EnrollButton } from '@/components/EnrollButton';
 import { GraphEditor } from '@/components/GraphEditor';
 import { VersionDetailsForm } from '@/components/VersionDetailsForm';
 import { levelLabels, nodeStateLabels, ratingBand, versionStatusLabels } from '@/lib/messages';
-import { PageHeader } from '@/components/ui';
+import { PageHeader, VersionPipeline } from '@/components/ui';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 import type { Node } from '@xyflow/react';
@@ -125,6 +125,7 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
           ) : undefined
         }
       />
+      {owner && <VersionPipeline status={graph.version.status} />}
       <dl className="stats">
         <div className="stat">
           <dt>Стан</dt>
