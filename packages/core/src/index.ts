@@ -11,3 +11,5 @@ export * from './experiment';
 export * from './exam';
 export * from './proctor';
 export * from './certificate';
+export * from './recommendations';
+export * from './demo';

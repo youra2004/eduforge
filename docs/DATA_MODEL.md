@@ -55,7 +55,7 @@ erDiagram
 ## 3. Users and access
 
 ```
-users(id, email unique, password_hash, display_name, created_at, exam_ban_until null, exam_banned_forever bool default false)
+users(id, email unique, password_hash, display_name, created_at, exam_ban_until null, exam_banned_forever bool default false, is_demo bool default false)
 user_roles(user_id → users, role, PK(user_id, role))
 consents(id, user_id, kind, version, given_at)           -- kind: 'proctoring','research','terms'
 ```
@@ -198,7 +198,8 @@ Example `payload` (canonical JSON): `certificate_id`, `holder_name`, `course {id
 ## 12. Recommendations, LLM, events
 
 ```
-recommendations(id, user_id, day date, items jsonb, llm_run_id, created_at, UNIQUE(user_id, day))
+recommendations(id, user_id, day date, items jsonb, metrics_hash text, llm_run_id, created_at, UNIQUE(user_id, day))
+                -- items: 1-3 tips {kind, title, text}; metrics_hash: SHA-256 of the metrics the tips came from (ADR-0015)
 
 llm_runs(id, purpose llm_purpose, model, params jsonb, prompt_version text, prompt_hash,
          request jsonb, response jsonb, tokens_in int, tokens_out int, cost_usd numeric,

@@ -2,6 +2,7 @@ import type { Db } from '@eduforge/db';
 import { DrizzleLLMRunStore, LLMClient, MockLLMProvider } from '@eduforge/llm';
 import { auditMockResponders } from '../audit/mock';
 import { certificateMockResponders } from '../certificate/summary';
+import { recommendationMockResponders } from '../recommendations/prompt';
 import { tutorMockResponders } from '../tutor/mock';
 import { questionMockResponders } from './mock';
 
@@ -12,6 +13,7 @@ export function createLLMClient(db: Db) {
     ...tutorMockResponders,
     ...auditMockResponders,
     ...certificateMockResponders,
+    ...recommendationMockResponders,
   });
   return new LLMClient(mock, new DrizzleLLMRunStore(db));
 }

@@ -91,6 +91,12 @@ export default async function AdminPage() {
           Переглянути видані сертифікати й відкликати їх
         </Link>
       </p>
+      <h2>Демо-режим і рекомендації</h2>
+      <p>
+        <Link href="/admin/demo" data-testid="demo-link">
+          Масштаб часу, запуск щоденних порад вручну
+        </Link>
+      </p>
       <h2>Експорт дослідження</h2>
       <p className="hint">
         CSV без email та імен: людей позначає лише код учасника. Для скриптів у{' '}

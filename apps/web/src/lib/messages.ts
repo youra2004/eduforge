@@ -170,3 +170,18 @@ export const examSkillLevelLabels = {
   good: 'Добре',
   needs_work: 'Потребує доопрацювання',
 } as const;
+
+export const recommendationOutcomeLabels = {
+  created: 'Створено поради',
+  unchanged: 'Без змін: нових порад немає',
+  already_today: 'Поради на сьогодні вже є',
+  no_data: 'Замало даних',
+  failed: 'Помилка',
+} as const;
+
+export const recommendationKindLabels = {
+  weak_skill: 'Слабка навичка',
+  missed: 'Пропущена активність',
+  failures: 'Невдалі спроби',
+  progress: 'Прогрес',
+} as const;
