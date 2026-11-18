@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { CourseError, getReview, type AuditSummary } from '@eduforge/core';
 import { ReviewForm } from '@/components/ReviewForm';
 import { checklistLabels, feedbackLabels, levelLabels, reviewStatusLabels } from '@/lib/messages';
+import { PageHeader } from '@/components/ui';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 
@@ -17,17 +18,25 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   });
   const summary = r.version.auditSummary as AuditSummary | null;
   return (
-    <div className="card">
+    <div className="page reading">
+      <PageHeader
+        back={{ href: '/expert', label: 'Черга перевірки' }}
+        title={
+          <>
+            {r.version.title} <span className="muted">v{r.version.versionNo}</span>
+          </>
+        }
+        lead={r.version.description || undefined}
+        actions={
+          <Link href={`/courses/${r.version.id}`} className="btn secondary">
+            Відкрити курс, його граф і матеріали
+          </Link>
+        }
+      />
       <p>
-        <Link href="/expert">← Черга перевірки</Link>
-      </p>
-      <h1>
-        {r.version.title} <span className="muted">v{r.version.versionNo}</span>
-      </h1>
-      <p data-testid="review-status">{reviewStatusLabels[r.review.status]}</p>
-      {r.version.description && <p>{r.version.description}</p>}
-      <p>
-        <Link href={`/courses/${r.version.id}`}>Відкрити курс, його граф і матеріали</Link>
+        <span className="badge accent" data-testid="review-status">
+          {reviewStatusLabels[r.review.status]}
+        </span>
       </p>
       <h2>Що встановив аудит</h2>
       <dl className="feedback" data-testid="review-audit">

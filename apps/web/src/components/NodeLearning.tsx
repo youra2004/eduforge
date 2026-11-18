@@ -93,7 +93,9 @@ export function NodeLearning(p: NodeLearningProps) {
     <section className="learning" data-testid="node-learning">
       {!p.control && <h2>Тест вузла</h2>}
       {!p.control && p.state === 'passed' && (
-        <p data-testid="node-state-note">Вузол пройдено. Наступні вузли розблоковано.</p>
+        <p className="callout ok" data-testid="node-state-note">
+          Вузол пройдено. Наступні вузли розблоковано.
+        </p>
       )}
       {!p.control && p.state === 'cooldown' && p.cooldownUntil && (
         <p data-testid="cooldown-note" className="error">
@@ -110,7 +112,13 @@ export function NodeLearning(p: NodeLearningProps) {
             {p.attemptsInRound > 0 && ' Перед наступною спробою перегляньте матеріал вище.'} Вузол
             вважається пройденим, коли кожна навичка вузла досягне 80 %.
           </p>
-          <button type="button" onClick={startTest} disabled={busy} data-testid="start-test">
+          <button
+            type="button"
+            onClick={startTest}
+            disabled={busy}
+            aria-busy={busy}
+            data-testid="start-test"
+          >
             {p.state === 'in_progress' && p.attemptsInRound === 0
               ? 'Продовжити тест'
               : 'Пройти тест вузла'}
@@ -132,7 +140,7 @@ export function NodeLearning(p: NodeLearningProps) {
             onSubmit={answerPractice}
           />
           {verdict !== null && (
-            <p data-testid="practice-verdict" className={verdict ? '' : 'error'}>
+            <p data-testid="practice-verdict" className={verdict ? 'callout ok' : 'error'}>
               {verdict
                 ? 'Вірно!'
                 : 'Поки що невірно. Перегляньте матеріал і спробуйте інше питання.'}{' '}

@@ -14,7 +14,7 @@ export default async function ExamRunPage({ params }: { params: Promise<{ id: st
     throw err;
   });
   return (
-    <div className="card">
+    <div className="page focus">
       <ExamRunner initial={JSON.parse(JSON.stringify(exam)) as ExamViewData} />
     </div>
   );

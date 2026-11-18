@@ -1,6 +1,6 @@
 import { demoSettings } from '@eduforge/core';
-import Link from 'next/link';
 import { RunRecommendations } from '@/components/RunRecommendations';
+import { PageHeader } from '@/components/ui';
 import { requirePageRole } from '@/lib/pages';
 
 export const dynamic = 'force-dynamic';
@@ -22,12 +22,12 @@ export default async function DemoPage() {
   await requirePageRole('admin');
   const settings = demoSettings();
   return (
-    <div className="card wide">
-      <p>
-        <Link href="/admin">← До адміністрування</Link>
-      </p>
-      <h1>Демо-режим і рекомендації</h1>
-      <h2>Масштаб часу</h2>
+    <div className="page">
+      <PageHeader
+        back={{ href: '/admin', label: 'До адміністрування' }}
+        title="Демо-режим і рекомендації"
+      />
+      <h2 style={{ marginTop: 0 }}>Масштаб часу</h2>
       <p data-testid="time-scale">
         TIME_SCALE = <strong>{settings.timeScale}</strong>
         {settings.timeScale === 1 ? ' (реальний час)' : ' (демо-режим)'}

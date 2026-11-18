@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { sendJson } from '@/lib/client';
 import { StrikeAppeal } from './StrikeAppeal';
+import { PageHeader } from './ui';
 
 export interface ExamStatusView {
   versionId: string;
@@ -130,14 +131,14 @@ export function ExamPrecheck({
 
   return (
     <div data-testid="exam-precheck">
-      <p>
-        <Link href={`/courses/${status.versionId}`}>← До курсу</Link>
-      </p>
-      <h1>Фінальний іспит</h1>
-      <p className="muted">{status.title}</p>
+      <PageHeader
+        back={{ href: `/courses/${status.versionId}`, label: 'До курсу' }}
+        title="Фінальний іспит"
+        lead={status.title}
+      />
 
-      <h2>Правила</h2>
-      <ul data-testid="exam-rules">
+      <h2 style={{ marginTop: 0 }}>Правила</h2>
+      <ul data-testid="exam-rules" className="rules">
         <li>
           Питань: {r.questions}, на весь іспит — {r.minutes} хв. На тестове або коротку відповідь —{' '}
           {r.choiceSeconds} с, на розгорнуту — {Math.round(r.openSeconds / 60)} хв.
@@ -208,7 +209,11 @@ export function ExamPrecheck({
       )}
 
       {status.blockedBy && !status.runningId && (
-        <p className="error" role="status" data-testid="exam-blocked">
+        <p
+          className={status.blockedBy === 'exam_banned' ? 'error' : 'callout warn'}
+          role="status"
+          data-testid="exam-blocked"
+        >
           {blockedText[status.blockedBy] ?? 'Іспит зараз недоступний.'}
           {status.blockedBy === 'exam_cooldown' &&
             pauseMinutes &&
@@ -220,13 +225,13 @@ export function ExamPrecheck({
       )}
       {status.runningId && (
         <p>
-          <Link href={`/exams/${status.runningId}`} data-testid="exam-continue">
+          <Link href={`/exams/${status.runningId}`} className="btn" data-testid="exam-continue">
             Продовжити іспит, що триває
           </Link>
         </p>
       )}
       {!status.runningId && status.canStart && (
-        <>
+        <div className="card start-card">
           {resumable && (
             <p data-testid="exam-resumable">
               Попередню спробу перервано (перерв: {resumable.interruptions} з{' '}
@@ -259,11 +264,12 @@ export function ExamPrecheck({
             type="button"
             onClick={start}
             disabled={!agreed || (status.proctoringRequired && !consent) || busy}
+            aria-busy={busy}
             data-testid="exam-start"
           >
             {resumable ? 'Відновити іспит' : 'Почати іспит'}
           </button>
-        </>
+        </div>
       )}
       {strikes.length > 0 && (
         <>

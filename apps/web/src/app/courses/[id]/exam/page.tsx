@@ -16,7 +16,7 @@ export default async function ExamPage({ params }: { params: Promise<{ id: strin
   });
   const strikes = await listOwnStrikes(getDb(), user);
   return (
-    <div className="card">
+    <div className="page focus">
       <ExamPrecheck
         strikes={JSON.parse(JSON.stringify(strikes))}
         status={JSON.parse(JSON.stringify(status)) as ExamStatusView}

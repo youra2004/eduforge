@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
 import { TutorChat } from './TutorChat';
+import { PageHeader } from './ui';
 
 export interface AssessmentView {
   id: string;
@@ -65,16 +66,14 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
   // Study tests measure, so they show no verdicts and no score, only that the answers are in.
   if (study && a.status !== 'in_progress') {
     return (
-      <div data-testid="study-test-done">
-        <h1>{study}: завершено</h1>
-        <p>
-          Дякуємо! Відповіді збережено. Результат не показується, щоб не впливати на дослідження.
-        </p>
-        <p>
-          <Link href="/experiment" data-testid="back-to-experiment">
-            Повернутися до дослідження
-          </Link>
-        </p>
+      <div className="card" data-testid="study-test-done">
+        <PageHeader
+          title={`${study}: завершено`}
+          lead="Дякуємо! Відповіді збережено. Результат не показується, щоб не впливати на дослідження."
+        />
+        <Link href="/experiment" className="btn" data-testid="back-to-experiment">
+          Повернутися до дослідження
+        </Link>
       </div>
     );
   }
@@ -84,11 +83,18 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
     const node = r.node;
     return (
       <div data-testid="test-result">
-        <h1 data-testid="result-verdict">{r.passed ? 'Вузол пройдено' : 'Поки що не пройдено'}</h1>
-        <p className="muted">
-          Раунд {a.roundNo}, спроба {a.attemptNo} з {a.attemptsPerRound} · правильних відповідей{' '}
-          {Math.round(r.scorePct ?? 0)} %
-        </p>
+        <div className={`result-hero ${r.passed ? 'ok' : 'bad'}`}>
+          <span className="result-score">{Math.round(r.scorePct ?? 0)} %</span>
+          <div>
+            <h1 data-testid="result-verdict">
+              {r.passed ? 'Вузол пройдено' : 'Поки що не пройдено'}
+            </h1>
+            <p className="muted">
+              Раунд {a.roundNo}, спроба {a.attemptNo} з {a.attemptsPerRound} · правильних відповідей{' '}
+              {Math.round(r.scorePct ?? 0)} %
+            </p>
+          </div>
+        </div>
         <h2>Рівень навичок</h2>
         <p className="hint">Для проходження кожна навичка має досягти {pct(r.threshold)}.</p>
         <ul className="skills" data-testid="skill-levels">
@@ -106,10 +112,13 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
           ))}
         </ul>
         <h2>Відповіді</h2>
-        <ol data-testid="answer-list">
+        <ol className="answer-list" data-testid="answer-list">
           {a.items.map((i) => (
             <li key={i.id}>
-              {i.question.promptMd} — {i.isCorrect ? 'вірно' : 'невірно'}
+              <span className={i.isCorrect ? 'badge ok' : 'badge bad'}>
+                {i.isCorrect ? 'вірно' : 'невірно'}
+              </span>
+              <span>{i.question.promptMd}</span>
             </li>
           ))}
         </ol>
@@ -135,7 +144,9 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
           </>
         )}
         {r.passed && (
-          <p data-testid="next-step">Наступні вузли, для яких пройдено всі попередні, відкрито.</p>
+          <p className="callout ok" data-testid="next-step">
+            Наступні вузли, для яких пройдено всі попередні, відкрито.
+          </p>
         )}
         {!r.passed && node?.state === 'cooldown' && node.cooldownUntil && (
           <p className="error" data-testid="next-step">
@@ -147,15 +158,19 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
           </p>
         )}
         {!r.passed && node?.state === 'in_progress' && (
-          <p data-testid="next-step">
+          <p className="callout warn" data-testid="next-step">
             Повернутись до матеріалів і спробувати ще раз можна одразу: залишилась спроба{' '}
             {node.attemptsInRound + 1} з {a.attemptsPerRound}. Нові питання буде підібрано з пулу.
           </p>
         )}
-        <p>
-          <Link href={`/courses/${a.versionId}`}>До графа курсу</Link> ·{' '}
-          <Link href={`/courses/${a.versionId}/nodes/${a.nodeId}`}>До вузла</Link>
-        </p>
+        <div className="actions" style={{ marginTop: 24 }}>
+          <Link href={`/courses/${a.versionId}`} className="btn">
+            До графа курсу
+          </Link>
+          <Link href={`/courses/${a.versionId}/nodes/${a.nodeId}`} className="btn secondary">
+            До вузла
+          </Link>
+        </div>
       </div>
     );
   }
@@ -164,18 +179,27 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
   const answered = a.items.filter((i) => i.answered).length;
   return (
     <div data-testid="test-runner">
-      <h1>{study ?? 'Тест вузла'}</h1>
-      <p className="muted" data-testid="progress">
-        Питання {answered + 1} з {a.items.length}
-        {!study && ` · раунд ${a.roundNo}, спроба ${a.attemptNo} з ${a.attemptsPerRound}`}
-      </p>
-      <QuestionForm
-        key={current.id}
-        question={current.question}
-        busy={busy}
-        submitLabel="Відповісти"
-        onSubmit={answer}
+      <PageHeader
+        title={study ?? 'Тест вузла'}
+        lead={
+          <span data-testid="progress">
+            Питання {answered + 1} з {a.items.length}
+            {!study && ` · раунд ${a.roundNo}, спроба ${a.attemptNo} з ${a.attemptsPerRound}`}
+          </span>
+        }
       />
+      <span className="question-progress" aria-hidden>
+        <span style={{ width: `${(answered / a.items.length) * 100}%` }} />
+      </span>
+      <div className="card question-card">
+        <QuestionForm
+          key={current.id}
+          question={current.question}
+          busy={busy}
+          submitLabel="Відповісти"
+          onSubmit={answer}
+        />
+      </div>
       {error && (
         <p role="alert" className="error">
           {error}

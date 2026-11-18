@@ -1,6 +1,7 @@
 import { listCertificates } from '@eduforge/core';
 import Link from 'next/link';
 import { RevokeCertificate } from '@/components/RevokeCertificate';
+import { EmptyState, PageHeader } from '@/components/ui';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 
@@ -10,20 +11,16 @@ export default async function CertificatesPage() {
   const admin = await requirePageRole('admin');
   const list = await listCertificates(getDb(), admin);
   return (
-    <div className="card wide">
-      <p>
-        <Link href="/admin">← До адміністрування</Link>
-      </p>
-      <h1>Сертифікати</h1>
-      <p className="hint">
-        Відкликаний сертифікат на публічній сторінці показується як недійсний; причину бачите лише
-        ви. Сертифікат також відкликається автоматично, коли підтверджене порушення скасовує
-        складений іспит.
-      </p>
+    <div className="page">
+      <PageHeader
+        back={{ href: '/admin', label: 'До адміністрування' }}
+        title="Сертифікати"
+        lead="Відкликаний сертифікат на публічній сторінці показується як недійсний; причину бачите лише ви. Сертифікат також відкликається автоматично, коли підтверджене порушення скасовує складений іспит."
+      />
       {list.length === 0 ? (
-        <p className="muted" data-testid="no-certificates">
-          Сертифікатів ще немає.
-        </p>
+        <EmptyState icon="award" title="Сертифікатів ще немає" testId="no-certificates">
+          Сертифікат зʼявиться тут, коли студент складе фінальний іспит.
+        </EmptyState>
       ) : (
         <table data-testid="certificates">
           <thead>
@@ -48,12 +45,14 @@ export default async function CertificatesPage() {
                 </td>
                 <td>
                   {c.revokedAt ? (
-                    <span data-testid="certificate-state">
+                    <span className="badge bad" data-testid="certificate-state">
                       Відкликано {c.revokedAt.toLocaleDateString('uk-UA')}: {c.revokeReason}
                     </span>
                   ) : (
                     <>
-                      <span data-testid="certificate-state">Дійсний</span>
+                      <span className="badge ok" data-testid="certificate-state">
+                        Дійсний
+                      </span>
                       <RevokeCertificate certificateId={c.id} />
                     </>
                   )}

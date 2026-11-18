@@ -81,7 +81,7 @@ export function AuthForm({
           {error}
         </p>
       )}
-      <button type="submit" disabled={busy}>
+      <button type="submit" disabled={busy} aria-busy={busy}>
         {submitLabel}
       </button>
     </form>

@@ -4,6 +4,9 @@ import '@xyflow/react/dist/style.css';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  Background,
+  BackgroundVariant,
+  Controls,
   Handle,
   MarkerType,
   Position,
@@ -30,7 +33,10 @@ export interface GraphNodeData extends Record<string, unknown> {
 
 function CourseNode({ data }: NodeProps<Node<GraphNodeData>>) {
   return (
-    <div className={`graph-node ${data.state}`} data-testid="graph-node">
+    <div
+      className={`graph-node ${data.state}${data.editing ? ' editing' : ''}`}
+      data-testid="graph-node"
+    >
       <Handle type="target" position={Position.Top} isConnectable={!!data.editing} />
       <a href={data.href}>{data.title}</a>
       <span className="graph-node-skills">{data.skillNames.join(' · ')}</span>
@@ -76,7 +82,7 @@ export function CourseGraph({
 
   const flowEdges: Edge[] = edges.map((e) => ({
     ...e,
-    markerEnd: { type: MarkerType.ArrowClosed },
+    markerEnd: { type: MarkerType.ArrowClosed, color: '#b9bdcb', width: 16, height: 16 },
     selected: e.id === editing?.selectedEdgeId,
   }));
   const shown = editing
@@ -113,9 +119,16 @@ export function CourseGraph({
           if (editing) editing.onSelectNode(node.id);
           else router.push(node.data.href);
         }}
+        // A read-only graph must not trap the page scroll: it is zoomed with the controls or a pinch.
+        zoomOnScroll={!!editing}
+        preventScrolling={!!editing}
+        minZoom={0.3}
         fitView
         fitViewOptions={{ padding: 0.15 }}
-      />
+      >
+        <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} />
+        <Controls showInteractive={false} />
+      </ReactFlow>
     </div>
   );
 }

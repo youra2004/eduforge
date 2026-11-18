@@ -21,7 +21,7 @@ export function EnrollButton({ versionId }: { versionId: string }) {
   }
   return (
     <div>
-      <button type="button" onClick={enroll} disabled={busy} data-testid="enroll">
+      <button type="button" onClick={enroll} disabled={busy} aria-busy={busy} data-testid="enroll">
         Записатися на курс
       </button>
       {error && (

@@ -17,7 +17,7 @@ export default async function AssessmentPage({ params }: { params: Promise<{ id:
     },
   );
   return (
-    <div className="card">
+    <div className="page focus">
       <TestRunner
         initial={JSON.parse(JSON.stringify(assessment)) as AssessmentView}
         serverNow={now.toISOString()}
