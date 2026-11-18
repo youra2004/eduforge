@@ -855,3 +855,64 @@ export const strikes = pgTable(
 export type ProctorEvent = typeof proctorEvents.$inferSelect;
 export type ProctorEvidence = typeof proctorEvidence.$inferSelect;
 export type Strike = typeof strikes.$inferSelect;
+
+// Certificates (DATA_MODEL.md section 11, F10). Only public keys live here; the private key is in env.
+export const signingKeys = pgTable('signing_keys', {
+  kid: text('kid').primaryKey(),
+  /** The raw 32-byte Ed25519 public key, base64url (the `x` of its JWK). */
+  publicKey: text('public_key').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  retiredAt: timestamp('retired_at', { withTimezone: true }),
+});
+
+/** What is signed: the canonical JSON of this object (F10-R1). No photo and no biometrics. */
+export interface CertificatePayload {
+  certificate_id: string;
+  holder_name: string;
+  course: { id: string; version: number; title: string };
+  rating: number | null;
+  score_pct: number;
+  issued_at: string;
+  skills: { name: string; level: ExamSkillLevel; pct: number }[];
+  summary_text: string;
+  kid: string;
+}
+
+export const certificates = pgTable(
+  'certificates',
+  {
+    // Also the `certificate_id` in the payload: random, so the public link cannot be guessed.
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    courseVersionId: uuid('course_version_id')
+      .notNull()
+      .references(() => courseVersions.id),
+    // One certificate per passed exam attempt.
+    assessmentId: uuid('assessment_id')
+      .notNull()
+      .unique()
+      .references(() => assessments.id),
+    payload: jsonb('payload').$type<CertificatePayload>().notNull(),
+    payloadSha256: text('payload_sha256').notNull(),
+    /** Ed25519 over the canonical payload, base64url. */
+    signature: text('signature').notNull(),
+    kid: text('kid')
+      .notNull()
+      .references(() => signingKeys.kid),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    revokeReason: text('revoke_reason'),
+  },
+  (t) => [
+    index('certificates_user_idx').on(t.userId),
+    check(
+      'certificates_revocation_check',
+      sql`(${t.revokedAt} IS NULL) = (${t.revokeReason} IS NULL)`,
+    ),
+  ],
+);
+
+export type SigningKey = typeof signingKeys.$inferSelect;
+export type Certificate = typeof certificates.$inferSelect;
