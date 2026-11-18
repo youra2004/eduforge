@@ -26,7 +26,7 @@ Input: `analysis/out/synthetic-data/modules.csv`. 60 participant-module rows, 30
 
 ## H1–H3. Paired comparison, method vs control
 
-Differences are method − control. The primary test is fixed in advance: Wilcoxon signed-rank when the differences are clearly non-normal (Shapiro p < 0.05), else the paired t-test. Holm correction over the three outcomes. Confidence intervals are bootstrap percentile (5000 resamples, fixed seed).
+Differences are method − control. The primary test is fixed in advance: Wilcoxon signed-rank when the differences are clearly non-normal (Shapiro p < 0.05) or when the t-test is undefined (no spread in the differences), else the paired t-test. Holm correction over the three outcomes. Confidence intervals are bootstrap percentile (5000 resamples, fixed seed).
 
 | Outcome | Pairs | Method mean (SD) | Control mean (SD) | Mean diff [95 % bootstrap CI] | Cohen's d paired [95 % CI] | Primary test: p | p (Holm, 3 outcome(s) with a defined p) | All p-values |
 |---|---|---|---|---|---|---|---|---|

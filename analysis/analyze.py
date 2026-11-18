@@ -118,10 +118,13 @@ def paired_t_p(a, b) -> float:
 
 def wilcoxon_p(a, b) -> float:
     """Wilcoxon signed-rank p on the rounded differences, NaN when undefined (all zero, or too few distinct ones)."""
+    diff = differences(a, b)
+    if not diff.any():  # scipy would return p = 1 for "no difference at all"; that is not a test result
+        return float("nan")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:
-            return float(stats.wilcoxon(differences(a, b)).pvalue)
+            return float(stats.wilcoxon(diff).pvalue)
         except ValueError:
             return float("nan")
 
@@ -138,7 +141,7 @@ def compare(pairs: np.ndarray) -> dict | None:
     lo, hi = bootstrap(diff, np.mean)
     d_lo, d_hi = bootstrap(diff, cohens_d_paired)
     # rule fixed in advance: the Wilcoxon test when the differences are clearly non-normal (Shapiro p < .05)
-    use_w = shapiro_p < 0.05 and w_p == w_p  # (choosing the test from the same data slightly inflates type I error)
+    use_w = (shapiro_p < 0.05 or t_p != t_p) and w_p == w_p  # (choosing the test from the same data slightly inflates type I error)
     return {
         "n": len(pairs), "method_mean": method.mean(), "control_mean": control.mean(),
         "method_sd": method.std(ddof=1), "control_sd": control.std(ddof=1), "diff": diff.mean(),
@@ -155,7 +158,7 @@ def fmt_p(p: float) -> str:
 def outcome_table(rep: Report, results: dict[str, dict | None], out: Path) -> None:
     rows, csv_rows = [], []
     live = {k: v for k, v in results.items() if v}
-    adj = dict(zip(live, holm([v["p"] for v in live.values()]))) if live else {}  # the family: the outcomes with a defined p
+    adj = dict(zip(live, holm([v["p"] for v in live.values()]))) if live else {}  # the family: the outcomes with a defined p (NaN stays NaN)
     for name, r in results.items():
         if r is None:
             rows.append([name, "<3", "too few complete pairs", "", "", "", "", "", ""])
@@ -168,7 +171,7 @@ def outcome_table(rep: Report, results: dict[str, dict | None], out: Path) -> No
         ])
         csv_rows.append({"outcome": name, **{k: r[k] for k in r}, "p_holm": adj[name]})
     rep.table(["Outcome", "Pairs", "Method mean (SD)", "Control mean (SD)", "Mean diff [95 % bootstrap CI]",
-               "Cohen's d paired [95 % CI]", "Primary test: p", f"p (Holm, {len(adj)} outcome(s) with a defined p)", "All p-values"], rows)
+               "Cohen's d paired [95 % CI]", "Primary test: p", f"p (Holm, {sum(p == p for p in adj.values())} outcome(s) with a defined p)", "All p-values"], rows)
     if csv_rows:
         with (out / "paired_tests.csv").open("w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=list(csv_rows[0]))
@@ -361,7 +364,7 @@ def run(data_dir: Path, source: str, out: Path) -> Report:
 
     rep.add("## H1–H3. Paired comparison, method vs control", "",
             "Differences are method − control. The primary test is fixed in advance: Wilcoxon signed-rank when the "
-            "differences are clearly non-normal (Shapiro p < 0.05), else the paired t-test. Holm correction over the "
+            "differences are clearly non-normal (Shapiro p < 0.05) or when the t-test is undefined (no spread in the differences), else the paired t-test. Holm correction over the "
             "three outcomes. Confidence intervals are bootstrap percentile (5000 resamples, fixed seed).", "")
     results = {"H1 normalized gain": compare(h1), "H2 delayed post-test": compare(h2), "H3 active seconds": compare(h3)}
     outcome_table(rep, results, out)
