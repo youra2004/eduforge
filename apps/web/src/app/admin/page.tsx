@@ -85,6 +85,12 @@ export default async function AdminPage() {
           Відкрити чергу порушень та апеляцій
         </Link>
       </p>
+      <h2>Сертифікати</h2>
+      <p>
+        <Link href="/admin/certificates" data-testid="certificates-link">
+          Переглянути видані сертифікати й відкликати їх
+        </Link>
+      </p>
       <h2>Експорт дослідження</h2>
       <p className="hint">
         CSV без email та імен: людей позначає лише код учасника. Для скриптів у{' '}

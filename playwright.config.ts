@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +8,13 @@ import { defineConfig } from '@playwright/test';
 const run = Date.now().toString(36);
 process.env.EXPERIMENT_COURSE_A ??= `e2e-a-${run}`;
 process.env.EXPERIMENT_COURSE_B ??= `e2e-b-${run}`;
+
+// Certificates are signed with an Ed25519 key from env; the e2e run gets a throwaway one unless one is set.
+const certKey =
+  process.env.CERT_SIGNING_KEY ??
+  generateKeyPairSync('ed25519')
+    .privateKey.export({ format: 'der', type: 'pkcs8' })
+    .toString('base64');
 
 const port = Number(process.env.E2E_PORT ?? 3100);
 
@@ -40,6 +48,7 @@ export default defineConfig({
       SNAPSHOT_INTERVAL_SECONDS: '3',
       PROCTOR_FOCUS_GRACE_SECONDS: '1',
       PROCTOR_PROVIDER: 'mock',
+      CERT_SIGNING_KEY: certKey,
     },
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,

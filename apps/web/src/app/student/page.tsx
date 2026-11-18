@@ -1,5 +1,10 @@
 import Link from 'next/link';
-import { experimentSettings, getParticipation, listEnrollments } from '@eduforge/core';
+import {
+  experimentSettings,
+  getParticipation,
+  listEnrollments,
+  listOwnCertificates,
+} from '@eduforge/core';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 
@@ -8,6 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function Page() {
   const user = await requirePageRole('student');
   const mine = await listEnrollments(getDb(), user);
+  const certs = await listOwnCertificates(getDb(), user);
   const study = await getParticipation(getDb(), user, experimentSettings());
   return (
     <div className="card">
@@ -58,6 +64,22 @@ export default async function Page() {
             ))}
           </tbody>
         </table>
+      )}
+      {certs.length > 0 && (
+        <>
+          <h2>Мої сертифікати</h2>
+          <ul data-testid="my-certificates">
+            {certs.map((c) => (
+              <li key={c.id}>
+                <Link href={`/verify/${c.id}`}>{c.title}</Link>{' '}
+                <span className="muted">
+                  {c.issuedAt.toLocaleDateString('uk-UA')}
+                  {c.revoked && ' · відкликано'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       <p className="hint">Іспит зʼявиться, коли ви пройдете всі вузли курсу.</p>
     </div>

@@ -683,3 +683,60 @@ blockquote {
   padding: 8px 12px;
   border-left: 3px solid var(--line);
 }
+
+/* Certificate page (F10-R3, F10-R5) */
+.certificate {
+  max-width: 720px;
+  margin: 0 auto;
+}
+.verdict {
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+.verdict.ok {
+  background: #e7f6ec;
+  color: #0a7a3d;
+}
+.verdict.bad {
+  background: #fdecea;
+  color: #b42318;
+}
+.holder {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 4px 0 12px;
+}
+.cert-foot {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin: 16px 0;
+}
+.cert-foot dl {
+  margin: 0;
+}
+.cert-foot dt {
+  font-weight: 600;
+}
+.cert-foot dd {
+  margin: 0 0 6px;
+}
+.hash {
+  word-break: break-all;
+  font-family: ui-monospace, monospace;
+}
+@media print {
+  .site-header,
+  .no-print {
+    display: none;
+  }
+  main {
+    margin: 0;
+    max-width: none;
+  }
+  .card {
+    border: 0;
+    padding: 0;
+  }
+}

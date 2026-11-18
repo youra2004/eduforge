@@ -61,6 +61,13 @@ export const errorMessages: Record<AuthErrorCode | CourseErrorCode | 'internal',
   invalid_proctor_event: 'Некоректні дані перевірки.',
   strike_not_found: 'Порушення не знайдено.',
   invalid_strike_state: 'Ця дія недоступна в поточному стані порушення.',
+  certificate_not_found: 'Сертифікат не знайдено.',
+  certificate_not_eligible: 'Сертифікат видається лише за складений іспит.',
+  certificate_on_hold:
+    'Сертифікат буде видано після рішення адміністратора щодо підозри на іспиті.',
+  certificate_unavailable: 'Видача сертифікатів тимчасово недоступна. Спробуйте пізніше.',
+  invalid_certificate_state: 'Цей сертифікат уже відкликано.',
+  invalid_revocation: 'Вкажіть причину відкликання (від 3 до 500 символів).',
   internal: 'Щось пішло не так. Спробуйте ще раз.',
 };
 
