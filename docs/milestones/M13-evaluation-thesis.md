@@ -16,11 +16,11 @@ A reproducible analysis of the real experiment data, honest supporting checks, a
 New platform features.
 
 ## Acceptance criteria
-- [ ] All scripts run from a clean repository following the instructions, with a fixed seed for synthetic data
-- [ ] Every output clearly labels its source: `real` or `synthetic`
-- [ ] The "designed/implemented/verified" table matches the state of the repository
-- [ ] The conclusions in the text do not go beyond the available data (small N, limitations named)
-- [ ] No number in the text exists without a corresponding script or export
+- [x] All scripts run from a clean repository following the instructions, with a fixed seed for synthetic data (`analysis/run_all.sh`, `analysis/README.md`)
+- [x] Every output clearly labels its source: `real` or `synthetic`
+- [x] The "designed/implemented/verified" table matches the state of the repository (`docs/thesis/STATUS.md`)
+- [x] The conclusions in the text do not go beyond the available data (small N, limitations named; `docs/thesis/CHAPTERS.md`). **No real participant data exists yet**, so the real-data analysis is built and tested but has not been run on a real export
+- [x] No number in the text exists without a corresponding script or export
 
 ## Notes for the agent
 Do not invent or "tune" results. If there is no effect, that is the result.
