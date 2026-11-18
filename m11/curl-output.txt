@@ -1,0 +1,99 @@
+$ tsx --env-file-if-exists=../../.env scripts/create-admin.ts admin-1794991804@curl.local 'Адмін'
+
+$ exam: answer every question right (option 1) through the API until it ends
+status passed | score 100 | skills 11 | certificate {'id': 'b9edfe80-ea24-4073-9f57-70c300bc73e1', 'courseVersionId': 'b5bca3c2-4edd-4d7d-8140-d49d80beda97', 'title': 'Основи Python', 'issuedAt': '2026-11-18T08:50:11.489Z', 'revoked': False}
+certificate id: b9edfe80-ea24-4073-9f57-70c300bc73e1
+
+$ DB: one signed certificate, the key is public-only, the LLM call is logged
+       kid        |     signature     |      sha256       | key_in_db 
+------------------+-------------------+-------------------+-----------
+ 3DUdGj3g2lA-hkIu | X9GXufULReK-YnYq… | 80cece90afd45fd8… | t
+(1 row)
+
+       purpose       | model  |     prompt_version     | has_prompt | no_name_in_prompt 
+---------------------+--------+------------------------+------------+-------------------
+ certificate_summary | mock-1 | certificate-summary-v1 | t          | t
+(1 row)
+
+
+$ second POST /api/exams/:id/certificate returns the same certificate (idempotent)
+HTTP 200 {"certificate":{"id":"b9edfe80-ea24-4073-9f57-70c300bc73e1","courseVersionId":"b5bca3c2-4edd-4d7d-8140-d49d80beda97","title":"Основи Python","issuedAt":"2026-11-18T08:50:11.489Z","revoked":false}}
+
+$ GET /.well-known/jwks.json (no cookie)
+{"keys":[{"kty":"OKP","crv":"Ed25519","alg":"EdDSA","use":"sig","kid":"3DUdGj3g2lA-hkIu","x":"JIjowKwXWv9dJh068QcW7N20tnkJccyuukIkQ9dV96k"},{"kty":"OKP","crv":"Ed25519","alg":"EdDSA","use":"sig","kid":"qLLUJqPecEM9CneJ","x":"I_VyzBCg3iNyUZn5TOUKWBXUDbwJya36m6QHNortYa0","retired_at":"2026-11-18T08:36:56.570Z"},{"kty":"OKP","crv":"Ed25519","alg":"EdDSA","use":"sig","kid":"YfgsYjUrrHz12IoH","x":"B-9elXHncEPBqsqr94yUMRgaFx43K9shQ9cI5El5t5k","retired_at":"2026-11-18T08:40:55.869Z"},{"kty":"OKP","crv":"Ed25519","alg":"EdDSA","use":"sig","kid":"Y03BsIUUiHhb8HUN","x":"_4Bl1GlCAxedp4Mc_BR0ICLWad0ZCsuCwV8mRoIoyjw","retired_at":"2026-11-18T08:42:04.050Z"},{"kty":"OKP","crv":"Ed25519","alg":"EdDSA","use":"sig","kid":"BhjupCYVwSNSdqa8","x":"QdxHjlUc9UoEUQtkMlGEyjNTGgGp7nUgUsEOhLENWbI","retired_at":"2026-11-18T08:47:56.584Z"},{"kty":"OKP","crv":"Ed25519","alg":"EdDSA","use":"sig","kid":"DOVooL_lxb4BioPB","x":"PohSEauH7bioAY6Bh2k8DBWCjfsee_vhMn1BtKAf8D4","retired_at":"2026-11-18T08:50:11.488Z"}]}
+HTTP 200
+
+$ GET /api/certificates/:id (no cookie): payload, no email, no photo
+{
+    "id": "b9edfe80-ea24-4073-9f57-70c300bc73e1",
+    "payload": {
+        "kid": "3DUdGj3g2lA-hkIu",
+        "course": {
+            "id": "310bc85c-1c21-4178-be07-569b41708b5f",
+            "title": "Основи Python",
+            "version": 1
+        },
+        "rating": 2,
+        "skills": [
+            {
+                "pct": 100,
+                "name": "Ввід і вивід",
+                "level": "perfect"
+            },
+            {
+                "pct": 100,
+                "name": "Змінні та типи даних",
+                "level": "perfect"
+            },
+            {
+                "pct": 100,
+                "name": "Обробка помилок",
+                "level": "perfect"
+            },
+            {
+                "pct": 100,
+                "name": "Оператори",
+                "level": "perfect"
+
+$ GET /verify/:id (no cookie): public page
+HTTP 200
+  certificate-status: Сертифікат дійсний
+  holder: Олена Коваль
+  course-title: Основи Python
+  score: 100<!-- --> %
+  certificate-id: b9edfe80-ea24-4073-9f57-70c300bc73e1
+  qr image present: True | photo/biometrics words: False
+
+$ independent script (node:crypto only) against the running app
+certificate b9edfe80-ea24-4073-9f57-70c300bc73e1  kid 3DUdGj3g2lA-hkIu
+  signature: valid
+  sha-256:   matches
+  status:    valid
+exit code 0
+
+$ tamper: change holder_name in the DB payload -> page and script both reject
+  page verdict: Підпис не збігається: дані сертифіката могли бути змінені
+certificate b9edfe80-ea24-4073-9f57-70c300bc73e1  kid 3DUdGj3g2lA-hkIu
+  signature: INVALID
+  sha-256:   MISMATCH
+  status:    invalid
+exit code 1
+restored:
+  signature: valid
+
+$ revoke: a student cannot (403); an admin can, with a reason
+HTTP 403 {"error":"forbidden","message":"Недостатньо прав для цієї дії."}
+HTTP 422 {"error":"invalid_revocation","message":"Вкажіть причину відкликання (від 3 до 500 символів).","issu
+HTTP 200 {"certificate":{"id":"b9edfe80-ea24-4073-9f57-70c300bc73e1","revokedAt":"2026-11-18T08:50:14.589Z","reason":"Видано помилково (перевірка M11)"}}
+  page verdict: Сертифікат відкликано | reason shown publicly: False
+  api status: revoked | signatureValid: True | has reason field: False
+certificate b9edfe80-ea24-4073-9f57-70c300bc73e1  kid 3DUdGj3g2lA-hkIu
+  signature: valid
+  sha-256:   matches
+  status:    revoked
+exit code 1
+
+$ revoking twice -> 409; unknown id -> 404 on the public page and API
+HTTP 409 {"error":"invalid_certificate_state","message":"Цей сертифікат уже відкликано.","issues":[]}
+verify/unknown HTTP 404
+api/unknown HTTP 404
