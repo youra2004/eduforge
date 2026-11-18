@@ -30,6 +30,7 @@ import {
   listCertificates,
   listOwnCertificates,
   listPublicKeys,
+  registerSigningKey,
   revokeCertificate,
 } from './service';
 import { certificateMockResponders } from './summary';
@@ -222,7 +223,11 @@ describe('public verification (F10-R3)', () => {
       .update(certificates)
       .set({ payload: { ...row!.payload, score_pct: 100 } })
       .where(eq(certificates.id, id));
-    expect(await getPublicCertificate(db, id)).toMatchObject({ signatureValid: false });
+    // `status` never says valid for a certificate that fails the check.
+    expect(await getPublicCertificate(db, id)).toMatchObject({
+      signatureValid: false,
+      status: 'invalid',
+    });
   });
 
   it('a payload and hash both rewritten by someone without the key still fail on the signature', async () => {
@@ -250,7 +255,8 @@ describe('public verification (F10-R3)', () => {
   it('the public key by kid is served and an independent script verifies the signature with it', async () => {
     const { student, examId } = await setup();
     const { id } = await issueCertificate(db, llm, student, examId, { key });
-    const jwks = await listPublicKeys(db, key);
+    await registerSigningKey(db, key);
+    const jwks = await listPublicKeys(db);
     expect(jwks.find((k) => k.kid === key.kid)).toMatchObject({
       kty: 'OKP',
       crv: 'Ed25519',
@@ -281,12 +287,14 @@ describe('public verification (F10-R3)', () => {
     const { student, examId } = await setup();
     const { id } = await issueCertificate(db, llm, student, examId, { key });
     const next = loadSigningKey(generateSigningKey().privateKey);
-    const jwks = await listPublicKeys(db, next);
+    await registerSigningKey(db, next);
+    const jwks = await listPublicKeys(db);
     expect(jwks.find((k) => k.kid === key.kid)).toHaveProperty('retired_at');
     expect(jwks.find((k) => k.kid === next.kid)).not.toHaveProperty('retired_at');
     expect(await getPublicCertificate(db, id)).toMatchObject({ signatureValid: true });
     // Back in use: active again, and the other one is retired.
-    const back = await listPublicKeys(db, key);
+    await registerSigningKey(db, key);
+    const back = await listPublicKeys(db);
     expect(back.find((k) => k.kid === key.kid)).not.toHaveProperty('retired_at');
     expect(back.find((k) => k.kid === next.kid)).toHaveProperty('retired_at');
   });
@@ -344,5 +352,71 @@ describe('revocation (F10-R4)', () => {
     expect(await getPublicCertificate(db, id)).toMatchObject({ status: 'revoked' });
     const [row] = await db.select().from(certificates).where(eq(certificates.id, id));
     expect(row!.revokeReason).toContain('proctor_violation');
+  });
+});
+
+describe('an exam resumed after an interruption (F8-R6, ADR-0013)', () => {
+  /** The attempt the strike is about, and a later attempt resumed from it that passed. */
+  async function resumedPair() {
+    const { student, versionId, examId: first } = await setup('annulled');
+    const [second] = await db
+      .insert(assessments)
+      .values({
+        userId: student.id,
+        kind: 'exam',
+        courseVersionId: versionId,
+        attemptNo: 2,
+        status: 'passed',
+        scorePct: 80,
+        perSkill: skills,
+        questionSetSeed: 2,
+        submittedAt: T0,
+        meta: { resumedFrom: first },
+      })
+      .returning();
+    return { student, first, second: second!.id };
+  }
+
+  it('a flag on the earlier attempt holds the certificate of the resumed one', async () => {
+    const { student, first, second } = await resumedPair();
+    const admin = await makeUser(['admin']);
+    const [flag] = await db
+      .insert(strikes)
+      .values({ userId: student.id, assessmentId: first, reason: 'risk', status: 'pending_review' })
+      .returning();
+    expect(await code(issueCertificate(db, llm, student, second, { key }))).toBe(
+      'certificate_on_hold',
+    );
+    await reviewSoftStrike(db, admin, flag!.id, 'dismiss', {}, examSettings().proctor);
+    expect(await code(issueCertificate(db, llm, student, second, { key }))).toBe('ok');
+  });
+
+  it('a confirmed strike on the earlier attempt refuses the resumed one and revokes an issued certificate', async () => {
+    const { student, first, second } = await resumedPair();
+    const admin = await makeUser(['admin']);
+    const [flag] = await db
+      .insert(strikes)
+      .values({ userId: student.id, assessmentId: first, reason: 'risk', status: 'pending_review' })
+      .returning();
+    // Issued before the flag came in (the flag was added after the pass).
+    await db.delete(strikes).where(eq(strikes.id, flag!.id));
+    const { id } = await issueCertificate(db, llm, student, second, { key });
+    const [again] = await db
+      .insert(strikes)
+      .values({ userId: student.id, assessmentId: first, reason: 'risk', status: 'pending_review' })
+      .returning();
+    await reviewSoftStrike(db, admin, again!.id, 'confirm', {}, examSettings().proctor, T0);
+    expect(await getPublicCertificate(db, id)).toMatchObject({ status: 'revoked' });
+
+    const other = await resumedPair();
+    await db.insert(strikes).values({
+      userId: other.student.id,
+      assessmentId: other.first,
+      reason: 'x',
+      status: 'confirmed',
+    });
+    expect(await code(issueCertificate(db, llm, other.student, other.second, { key }))).toBe(
+      'certificate_not_eligible',
+    );
   });
 });

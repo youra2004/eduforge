@@ -12,7 +12,7 @@ import {
   type ExamSkillResult,
 } from '@eduforge/db';
 import type { LLMClient } from '@eduforge/llm';
-import { and, desc, eq, isNull, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/guard';
 import { requireRole } from '../auth/guard';
@@ -105,13 +105,39 @@ async function loadExam(db: Db | Tx, examId: string) {
   return row ?? null;
 }
 
-/** A pending soft flag holds the certificate until an admin decides (ADR-0013). */
+/**
+ * An exam resumed after an interruption is a new attempt row that points back with `meta.resumedFrom` (F8-R6).
+ * `up` gives the attempt and the ones it was resumed from, `down` the attempt and the ones resumed from it.
+ */
+async function lineage(db: Db | Tx, id: string, dir: 'up' | 'down'): Promise<string[]> {
+  const step =
+    dir === 'up'
+      ? sql`SELECT a.id, a.meta->>'resumedFrom' FROM assessments a JOIN chain c ON a.id::text = c.prev`
+      : sql`SELECT a.id, a.meta->>'resumedFrom' FROM assessments a JOIN chain c ON a.meta->>'resumedFrom' = c.id::text`;
+  const res = await db.execute(sql`WITH RECURSIVE chain(id, prev) AS (
+    SELECT id, meta->>'resumedFrom' FROM assessments WHERE id = ${id}
+    UNION ${step}
+  ) SELECT id FROM chain`);
+  return (res.rows as { id: string }[]).map((r) => r.id);
+}
+
+/**
+ * A strike on the attempt, or on one it was resumed from, stops the certificate: a flag waiting for an admin holds it
+ * (ADR-0013), a standing violation refuses it. Neither message tells the student about the flag.
+ */
 async function holdCheck(db: Db | Tx, assessmentId: string) {
-  const [flag] = await db
-    .select({ id: strikes.id })
+  const found = await db
+    .select({ status: strikes.status })
     .from(strikes)
-    .where(and(eq(strikes.assessmentId, assessmentId), eq(strikes.status, 'pending_review')));
-  if (flag) throw new CourseError('certificate_on_hold');
+    .where(
+      and(
+        inArray(strikes.assessmentId, await lineage(db, assessmentId, 'up')),
+        inArray(strikes.status, ['pending_review', 'confirmed', 'appealed']),
+      ),
+    );
+  if (found.some((f) => f.status === 'pending_review'))
+    throw new CourseError('certificate_on_hold');
+  if (found.length > 0) throw new CourseError('certificate_not_eligible');
 }
 
 /**
@@ -223,7 +249,7 @@ export interface PublicCertificate {
   kid: string;
   /** The signature matches the stored payload, the stored hash and the certificate id (F10-R2). */
   signatureValid: boolean;
-  status: 'valid' | 'revoked';
+  status: 'valid' | 'revoked' | 'invalid';
   revokedAt: Date | null;
 }
 
@@ -254,14 +280,13 @@ export async function getPublicCertificate(db: Db, id: string): Promise<PublicCe
     signature: c.signature,
     kid: c.kid,
     signatureValid,
-    status: c.revokedAt ? 'revoked' : 'valid',
+    status: c.revokedAt ? 'revoked' : signatureValid ? 'valid' : 'invalid',
     revokedAt: c.revokedAt,
   };
 }
 
-/** F10-R2: the public keys as a JWK set, retired ones included (they still verify what they signed). */
-export async function listPublicKeys(db: Db, active: SigningKey | null = activeSigningKey()) {
-  if (active) await registerSigningKey(db, active);
+/** F10-R2: the public keys as a JWK set, retired ones included (they still verify what they signed). Read-only. */
+export async function listPublicKeys(db: Db) {
   const rows = await db.select().from(signingKeys).orderBy(signingKeys.createdAt);
   return rows.map((k) => ({
     kty: 'OKP',
@@ -309,19 +334,27 @@ export async function revokeCertificate(
   });
 }
 
-/** A confirmed strike annuls a passed attempt (ADR-0013): its certificate goes with it. Called inside that transaction. */
+/**
+ * A confirmed strike annuls a passed attempt (ADR-0013): its certificate goes with it, and so does the certificate of
+ * an attempt resumed from it. Called inside that transaction.
+ */
 export async function revokeCertificateOfAssessment(
   tx: Tx,
   assessmentId: string,
   reason: string,
   now: Date,
 ) {
-  const [c] = await tx
+  const revoked = await tx
     .update(certificates)
     .set({ revokedAt: now, revokeReason: reason })
-    .where(and(eq(certificates.assessmentId, assessmentId), isNull(certificates.revokedAt)))
+    .where(
+      and(
+        inArray(certificates.assessmentId, await lineage(tx, assessmentId, 'down')),
+        isNull(certificates.revokedAt),
+      ),
+    )
     .returning();
-  if (c) {
+  for (const c of revoked) {
     await logEvent(tx, c.userId, 'certificate_revoked', { certificateId: c.id, auto: true });
   }
 }
