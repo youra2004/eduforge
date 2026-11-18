@@ -101,12 +101,27 @@ def holm(pvalues: list[float]) -> list[float]:
     return adjusted
 
 
-def wilcoxon_p(a: np.ndarray, b: np.ndarray) -> float:
-    """Wilcoxon signed-rank p, NaN when it is undefined (all differences zero, or too few distinct ones)."""
+def differences(a, b) -> np.ndarray:
+    """a - b rounded to 9 decimals: scores are k/6 shares, so differences equal "up to float noise" must be equal."""
+    return np.round(np.asarray(a, dtype=float) - np.asarray(b, dtype=float), 9)
+
+
+def paired_t_p(a, b) -> float:
+    """Paired t-test p on the rounded differences; NaN when they have no spread (the statistic is undefined)."""
+    diff = differences(a, b)
+    if len(diff) < 2 or diff.std() <= 1e-9:
+        return float("nan")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        return float(stats.ttest_1samp(diff, 0.0).pvalue)
+
+
+def wilcoxon_p(a, b) -> float:
+    """Wilcoxon signed-rank p on the rounded differences, NaN when undefined (all zero, or too few distinct ones)."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:
-            return float(stats.wilcoxon(a, b).pvalue)
+            return float(stats.wilcoxon(differences(a, b)).pvalue)
         except ValueError:
             return float("nan")
 
@@ -116,11 +131,9 @@ def compare(pairs: np.ndarray) -> dict | None:
     if len(pairs) < 3:
         return None
     method, control = pairs[:, 0], pairs[:, 1]
-    diff = np.round(method - control, 9)
+    diff = differences(method, control)
     shapiro_p = float(stats.shapiro(diff).pvalue) if diff.std() > 1e-9 else float("nan")
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        t_p = float(stats.ttest_rel(method, control).pvalue) if diff.std() > 1e-9 else float("nan")
+    t_p = paired_t_p(method, control)
     w_p = wilcoxon_p(method, control)
     lo, hi = bootstrap(diff, np.mean)
     d_lo, d_hi = bootstrap(diff, cohens_d_paired)
@@ -150,12 +163,12 @@ def outcome_table(rep: Report, results: dict[str, dict | None], out: Path) -> No
         rows.append([
             name, r["n"], f"{r['method_mean']:.3f} ({r['method_sd']:.3f})", f"{r['control_mean']:.3f} ({r['control_sd']:.3f})",
             f"{r['diff']:+.3f} [{r['ci_lo']:+.3f}, {r['ci_hi']:+.3f}]",
-            f"{r['d']:+.2f} [{r['d_lo']:+.2f}, {r['d_hi']:+.2f}]",
+            "n/a (no spread)" if r["d"] != r["d"] else f"{r['d']:+.2f} [{r['d_lo']:+.2f}, {r['d_hi']:+.2f}]",
             f"{r['test']}: {fmt_p(r['p'])}", fmt_p(adj[name]), f"t {fmt_p(r['t_p'])} / W {fmt_p(r['w_p'])} / Shapiro {fmt_p(r['shapiro_p'])}",
         ])
         csv_rows.append({"outcome": name, **{k: r[k] for k in r}, "p_holm": adj[name]})
     rep.table(["Outcome", "Pairs", "Method mean (SD)", "Control mean (SD)", "Mean diff [95 % bootstrap CI]",
-               "Cohen's d paired [95 % CI]", "Primary test: p", "p (Holm, 3 outcomes)", "All p-values"], rows)
+               "Cohen's d paired [95 % CI]", "Primary test: p", f"p (Holm, {len(adj)} outcome(s) with a defined p)", "All p-values"], rows)
     if csv_rows:
         with (out / "paired_tests.csv").open("w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=list(csv_rows[0]))
@@ -166,8 +179,10 @@ def outcome_table(rep: Report, results: dict[str, dict | None], out: Path) -> No
 def group_test(a: list[float], b: list[float]) -> str:
     if len(a) < 2 or len(b) < 2:
         return "too few participants per group"
-    t = stats.ttest_ind(a, b, equal_var=False).pvalue
-    u = stats.mannwhitneyu(a, b).pvalue
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        t = stats.ttest_ind(a, b, equal_var=False).pvalue
+        u = stats.mannwhitneyu(a, b).pvalue
     return f"Welch p = {fmt_p(float(t))}, Mann–Whitney p = {fmt_p(float(u))}"
 
 
@@ -194,7 +209,7 @@ def order_topic_effects(rep: Report, rows: list[dict]) -> None:
     by_seq: dict[str, list[float]] = {}
     for v in full.values():
         seq = "method first" if v["period_method"] == 1 else "control first"
-        by_seq.setdefault(seq, []).append(v["method"] - v["control"])
+        by_seq.setdefault(seq, []).append(float(differences(v["method"], v["control"])))
     rep.table(["Sequence", "Participants", "Mean of (method − control) gain"],
               [[k, len(v), f"{np.mean(v):+.3f}"] for k, v in sorted(by_seq.items())])
     keys = sorted(by_seq)
@@ -203,7 +218,7 @@ def order_topic_effects(rep: Report, rows: list[dict]) -> None:
     rep.add("### Topic effect (which topic received the method)", "")
     by_topic: dict[str, list[float]] = {}
     for v in full.values():
-        by_topic.setdefault(v["method_topic"], []).append(v["method"] - v["control"])
+        by_topic.setdefault(v["method_topic"], []).append(float(differences(v["method"], v["control"])))
     rep.table(["Topic with the method", "Participants", "Mean of (method − control) gain"],
               [[k, len(v), f"{np.mean(v):+.3f}"] for k, v in sorted(by_topic.items())])
     keys = sorted(by_topic)
@@ -214,7 +229,7 @@ def order_topic_effects(rep: Report, rows: list[dict]) -> None:
     if len(both) >= 3:
         a, b = np.array(both).T
         rep.add(f"Mean gain in period 1 = {a.mean():.3f}, period 2 = {b.mean():.3f}, "
-                f"paired t p = {fmt_p(float(stats.ttest_rel(a, b).pvalue))} (n = {len(both)}).", "")
+                f"paired t p = {fmt_p(paired_t_p(a, b))} (n = {len(both)}).", "")
     else:
         rep.add("Too few participants.", "")
 
@@ -224,9 +239,9 @@ def order_topic_effects(rep: Report, rows: list[dict]) -> None:
     if len(eq) >= 3:
         arr = np.array(eq)
         rep.add(f"Pre-test A {arr[:, 2].mean():.3f} vs B {arr[:, 3].mean():.3f} "
-                f"(paired t p = {fmt_p(float(stats.ttest_rel(arr[:, 2], arr[:, 3]).pvalue))}); "
+                f"(paired t p = {fmt_p(paired_t_p(arr[:, 2], arr[:, 3]))}); "
                 f"post-test A {arr[:, 0].mean():.3f} vs B {arr[:, 1].mean():.3f} "
-                f"(paired t p = {fmt_p(float(stats.ttest_rel(arr[:, 0], arr[:, 1]).pvalue))}), n = {len(eq)}.", "")
+                f"(paired t p = {fmt_p(paired_t_p(arr[:, 0], arr[:, 1]))}), n = {len(eq)}.", "")
     else:
         rep.add("Too few participants.", "")
 
@@ -253,10 +268,11 @@ def tutor_section(rep: Report, path: Path, out: Path) -> None:
     ])
     rep.add("The guard flag measures what the guard **caught**, not what **leaked**: a reply that revealed the answer "
             "and passed the guard is invisible here. The actual leakage share needs the sampled manual review "
-            "(`RESEARCH.md` §3); this analysis does not replace it. The share of drafts flagged is the "
-            "\"without guard\" side of H4, the share shown after the guard needs that review. Turns without a question "
-            "(free chat) are in the denominator, but the guard has no reference answer there and cannot flag them; the "
-            "export does not say which turns had a question, so the share is an underestimate.", "")
+            "(`RESEARCH.md` §3); this analysis does not replace it. The flagged share is a **lower bound** on the "
+            "share of revealing drafts (the \"without guard\" side of H4) for two reasons: the guard misses some "
+            "leaks, and turns without a question (free chat) are in the denominator although the guard has no "
+            "reference answer there (the export does not say which turns had a question). The intervals treat replies "
+            "as independent, but one participant writes many, so they are narrower than they should be.", "")
 
 
 def figures(out: Path, source: str, rows: list[dict], results: dict) -> list[str]:
@@ -280,11 +296,11 @@ def figures(out: Path, source: str, rows: list[dict], results: dict) -> list[str
         ax.set_xticks([0, 1], ["control", "method"])
         ax.set_ylabel(label)
         ax.set_title("Each line is one participant")
-        diff = pairs[:, 0] - pairs[:, 1]
+        diff = differences(pairs[:, 0], pairs[:, 1])
         r = results[name]
         rng = np.random.default_rng(SEED)
         bx.scatter(rng.normal(0, 0.03, len(diff)), diff, color=blue, alpha=0.7)
-        bx.errorbar([0.25], [diff.mean()], yerr=[[diff.mean() - r["ci_lo"]], [r["ci_hi"] - diff.mean()]],
+        bx.errorbar([0.25], [diff.mean()], yerr=[[max(0.0, diff.mean() - r["ci_lo"])], [max(0.0, r["ci_hi"] - diff.mean())]],
                     fmt="o", color="black", capsize=5)
         bx.axhline(0, color="#666666", lw=1, ls="--")
         bx.set_xlim(-0.3, 0.5)
@@ -355,7 +371,7 @@ def run(data_dir: Path, source: str, out: Path) -> Report:
     for item in SURVEY:
         pairs = paired_by_participant(rows, f"survey_{item}")
         if len(pairs) >= 3:
-            diff = pairs[:, 0] - pairs[:, 1]
+            diff = differences(pairs[:, 0], pairs[:, 1])
             w = fmt_p(wilcoxon_p(pairs[:, 0], pairs[:, 1]))
             survey_rows.append([item, len(pairs), f"{pairs[:, 0].mean():.2f}", f"{pairs[:, 1].mean():.2f}", f"{diff.mean():+.2f}", w])
         else:

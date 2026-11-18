@@ -56,6 +56,11 @@ class Statistics(unittest.TestCase):
             self.assertTrue(r["d"] != r["d"])  # undefined, not 3e15
             self.assertTrue(r["ci_lo"] == r["ci_lo"])
 
+    def test_wilcoxon_ignores_float_noise_differences(self):
+        a = np.array([0.5 + 1 / 6, 0.5, 2 / 3, 1.0, 0.5])
+        b = np.array([0.5, 0.5, 2 / 3 - 1 / 3 + 1 / 3, 5 / 6, 1 / 3])
+        self.assertAlmostEqual(analyze.wilcoxon_p(a, b), analyze.wilcoxon_p(np.round(a, 6), np.round(b, 6)))
+
     def test_minimum_detectable_effect_shrinks_with_n(self):
         self.assertGreater(analyze.min_detectable_d(10), analyze.min_detectable_d(30))
         self.assertAlmostEqual(analyze.min_detectable_d(30), 0.52, delta=0.03)  # textbook: d ~ 0.52 for n = 30
@@ -97,6 +102,20 @@ class Pipeline(unittest.TestCase):
     def test_synthetic_data_cannot_be_labelled_real(self):
         with self.assertRaises(SystemExit):
             self.run_on(synthetic.generate(12, 3), source="real", marker=True)
+
+    def test_a_full_run_survives_equal_differences(self):
+        # every participant gains exactly 1/3 more with the method: the CI edge sits inside the unrounded mean
+        rows = []
+        for i in range(10):
+            for module, cond, post in (("A", "method", 4 / 6), ("B", "control", 3 / 6)):
+                rows.append({
+                    "participant_code": f"SYN-{i:03d}", "module": module, "condition": cond, "period": 1 if module == "A" else 2,
+                    "order_variant": "A_then_B", "pretest": 2 / 6, "posttest": post, "delayed_posttest": post,
+                    "gain_post": None, "retention_change": None, "active_seconds": 100, "node_test_attempts": 0,
+                    "node_test_failures": 0, "tutor_questions": 0, **{c: 3 for c in synthetic.SURVEY},
+                })
+        rep = self.run_on(rows)
+        self.assertIn("H2 delayed post-test", rep.text())
 
     def test_an_empty_tutor_file_does_not_stop_the_analysis(self):
         with tempfile.TemporaryDirectory() as tmp:

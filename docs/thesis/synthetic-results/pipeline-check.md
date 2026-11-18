@@ -28,7 +28,7 @@ Input: `analysis/out/synthetic-data/modules.csv`. 60 participant-module rows, 30
 
 Differences are method − control. The primary test is fixed in advance: Wilcoxon signed-rank when the differences are clearly non-normal (Shapiro p < 0.05), else the paired t-test. Holm correction over the three outcomes. Confidence intervals are bootstrap percentile (5000 resamples, fixed seed).
 
-| Outcome | Pairs | Method mean (SD) | Control mean (SD) | Mean diff [95 % bootstrap CI] | Cohen's d paired [95 % CI] | Primary test: p | p (Holm, 3 outcomes) | All p-values |
+| Outcome | Pairs | Method mean (SD) | Control mean (SD) | Mean diff [95 % bootstrap CI] | Cohen's d paired [95 % CI] | Primary test: p | p (Holm, 3 outcome(s) with a defined p) | All p-values |
 |---|---|---|---|---|---|---|---|---|
 | H1 normalized gain | 30 | 0.441 (0.161) | 0.297 (0.172) | +0.144 [+0.066, +0.221] | +0.65 [+0.31, +1.10] | paired t: 0.001 | 0.001 | t 0.001 / W 0.002 / Shapiro 0.699 |
 | H2 delayed post-test | 30 | 0.600 (0.112) | 0.461 (0.143) | +0.139 [+0.083, +0.194] | +0.88 [+0.50, +1.46] | Wilcoxon: < 0.001 | < 0.001 | t < 0.001 / W < 0.001 / Shapiro 0.005 |
@@ -54,7 +54,7 @@ The standard check of a two-period crossover: if (method − control) differs be
 | control first | 15 | +0.137 |
 | method first | 15 | +0.151 |
 
-Welch p = 0.861, Mann–Whitney p = 1.000
+Welch p = 0.861, Mann–Whitney p = 0.950
 
 ### Topic effect (which topic received the method)
 
@@ -63,7 +63,7 @@ Welch p = 0.861, Mann–Whitney p = 1.000
 | A | 16 | +0.191 |
 | B | 14 | +0.090 |
 
-Welch p = 0.222, Mann–Whitney p = 0.128
+Welch p = 0.222, Mann–Whitney p = 0.104
 
 ### Period effect (first vs second module, regardless of condition)
 
@@ -81,7 +81,7 @@ Pre-test A 0.350 vs B 0.361 (paired t p = 0.662); post-test A 0.611 vs B 0.572 (
 | First draft flagged by the guard as revealing the answer | 11 of 76 judged | 14.5 % | 8.3 % – 24.1 % |
 | Replies served from static hints (guard violation or provider error) | 7 of 76 | 9.2 % | 4.5 % – 17.8 % |
 
-The guard flag measures what the guard **caught**, not what **leaked**: a reply that revealed the answer and passed the guard is invisible here. The actual leakage share needs the sampled manual review (`RESEARCH.md` §3); this analysis does not replace it. The share of drafts flagged is the "without guard" side of H4, the share shown after the guard needs that review. Turns without a question (free chat) are in the denominator, but the guard has no reference answer there and cannot flag them; the export does not say which turns had a question, so the share is an underestimate.
+The guard flag measures what the guard **caught**, not what **leaked**: a reply that revealed the answer and passed the guard is invisible here. The actual leakage share needs the sampled manual review (`RESEARCH.md` §3); this analysis does not replace it. The flagged share is a **lower bound** on the share of revealing drafts (the "without guard" side of H4) for two reasons: the guard misses some leaks, and turns without a question (free chat) are in the denominator although the guard has no reference answer there (the export does not say which turns had a question). The intervals treat replies as independent, but one participant writes many, so they are narrower than they should be.
 
 ## Figures
 

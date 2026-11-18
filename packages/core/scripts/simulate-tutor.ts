@@ -250,7 +250,7 @@ async function main() {
         {
           name: 'short_two_accepted',
           say: 'рядок',
-          paraphrase: 'Правильна відповідь англійською звучить як string.',
+          paraphrase: 'Правильна відповідь англійською звучить як string.', // contains the accepted answer «str»
         },
       ],
     ];

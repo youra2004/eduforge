@@ -15,6 +15,7 @@ from pathlib import Path
 
 from common import Report
 
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", type=Path, default=Path(__file__).parent / "out" / "synthetic")
