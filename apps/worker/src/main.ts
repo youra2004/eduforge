@@ -4,12 +4,14 @@ import {
   createLLMClient,
   createTranscriptionClient,
   loadConfig,
+  recommendationSettings,
 } from '@eduforge/core';
 import { createDb } from '@eduforge/db';
 import { registerAuditJobs } from './auditJobs';
 import { registerContentJobs } from './contentJobs';
 import { registerJobs } from './jobs';
 import { registerProctorJobs } from './proctorJobs';
+import { registerRecommendationJobs } from './recommendationJobs';
 import { registerQuestionJobs } from './questionJobs';
 
 const config = loadConfig();
@@ -32,6 +34,11 @@ await registerQuestionJobs(boss, {
 });
 await registerAuditJobs(boss, { db, llm: createLLMClient(db) });
 await registerProctorJobs(boss, { db, storageDir: config.storageDir });
+await registerRecommendationJobs(boss, {
+  db,
+  llm: createLLMClient(db),
+  settings: recommendationSettings(config),
+});
 console.log('[worker] started');
 
 async function shutdown() {

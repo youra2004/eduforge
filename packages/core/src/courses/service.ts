@@ -46,7 +46,7 @@ function insertAll<T>(rows: T[], insert: (rows: T[]) => Promise<unknown>) {
  * Invalid input throws `invalid_course` with the full list of problems and writes nothing.
  * Callers check the caller's role; the CLI has no session.
  */
-export async function importCourse(db: Db, input: unknown, authorId: string) {
+export async function importCourse(db: Db | Tx, input: unknown, authorId: string) {
   const parsed = parseCourseImport(input);
   if (!parsed.ok) throw new CourseError('invalid_course', parsed.issues);
   const data = parsed.data;

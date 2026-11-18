@@ -1,10 +1,13 @@
 import Link from 'next/link';
 import {
   experimentSettings,
+  getOwnRecommendations,
   getParticipation,
+  isDemoUser,
   listEnrollments,
   listOwnCertificates,
 } from '@eduforge/core';
+import { recommendationKindLabels } from '@/lib/messages';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 
@@ -14,16 +17,44 @@ export default async function Page() {
   const user = await requirePageRole('student');
   const mine = await listEnrollments(getDb(), user);
   const certs = await listOwnCertificates(getDb(), user);
+  const tips = await getOwnRecommendations(getDb(), user);
+  const demo = await isDemoUser(getDb(), user.id);
   const study = await getParticipation(getDb(), user, experimentSettings());
   return (
     <div className="card">
       <h1>Студент</h1>
+      {demo && (
+        <p className="demo-banner" data-testid="demo-banner">
+          Демонстраційні дані: цей обліковий запис і його історія створені для показу, а не реальним
+          студентом.
+        </p>
+      )}
       {study && study.reminders.length > 0 && (
         <p className="reminder" role="status" data-testid="delayed-reminder">
           Нагадування: настав час пройти відкладений тест.{' '}
           <Link href="/experiment">До дослідження</Link>
         </p>
       )}
+      <h2>Поради для вас</h2>
+      {tips ? (
+        <>
+          <ul className="tips" data-testid="recommendations">
+            {tips.items.map((t) => (
+              <li key={t.title} className={`tip ${t.kind}`} data-testid="recommendation">
+                <span className="badge">{recommendationKindLabels[t.kind]}</span>
+                <strong>{t.title}</strong>
+                <p>{t.text}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="hint">Складено {tips.createdAt.toLocaleString('uk-UA')}.</p>
+        </>
+      ) : (
+        <p className="muted" data-testid="no-recommendations">
+          Порад поки немає. Вони зʼявляються, коли у вас є історія навчання.
+        </p>
+      )}
+      <h2>Мої курси</h2>
       {mine.length === 0 ? (
         <p className="muted" data-testid="no-enrollments">
           Ви ще не записані на жоден курс. Оберіть його у розділі <Link href="/courses">Курси</Link>

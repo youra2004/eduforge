@@ -5,6 +5,7 @@ import {
   bigserial,
   boolean,
   check,
+  date,
   index,
   integer,
   jsonb,
@@ -85,6 +86,8 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   examBanUntil: timestamp('exam_ban_until', { withTimezone: true }),
   examBannedForever: boolean('exam_banned_forever').notNull().default(false),
+  // Seed data of the demo environment (M12, NFR-6): shown as demonstration data wherever it appears.
+  isDemo: boolean('is_demo').notNull().default(false),
 });
 
 export const userRoles = pgTable(
@@ -913,6 +916,40 @@ export const certificates = pgTable(
     ),
   ],
 );
+
+// Recommendations (DATA_MODEL.md section 12, F7). One row per user and day, at most three tips.
+export const recommendationKinds = ['weak_skill', 'missed', 'failures', 'progress'] as const;
+export type RecommendationKind = (typeof recommendationKinds)[number];
+export interface RecommendationTip {
+  kind: RecommendationKind;
+  title: string;
+  text: string;
+}
+
+export const recommendations = pgTable(
+  'recommendations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    // The day the tips were made for. In demo mode (TIME_SCALE > 1) a "day" is 24 h / TIME_SCALE (ADR-0015).
+    day: date('day', { mode: 'string' }).notNull(),
+    items: jsonb('items').$type<RecommendationTip[]>().notNull(),
+    // SHA-256 of the metrics the tips were phrased from; the same hash on the next run means nothing changed.
+    metricsHash: text('metrics_hash').notNull(),
+    llmRunId: uuid('llm_run_id')
+      .notNull()
+      .references(() => llmRuns.id),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique('recommendations_user_day_unique').on(t.userId, t.day),
+    check('recommendations_items_max', sql`jsonb_array_length(${t.items}) BETWEEN 1 AND 3`),
+  ],
+);
+
+export type Recommendation = typeof recommendations.$inferSelect;
 
 export type SigningKey = typeof signingKeys.$inferSelect;
 export type Certificate = typeof certificates.$inferSelect;

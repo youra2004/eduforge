@@ -740,3 +740,41 @@ blockquote {
     padding: 0;
   }
 }
+
+/* Recommendations and demo mode (M12) */
+.tips {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.tip {
+  border: 1px solid var(--line);
+  border-left: 4px solid #3b6fd4;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+}
+.tip.failures {
+  border-left-color: var(--danger);
+}
+.tip.weak_skill {
+  border-left-color: #e6a21a;
+}
+.tip.missed {
+  border-left-color: #7a7a8c;
+}
+.tip.progress {
+  border-left-color: #0a7a3d;
+}
+.tip p {
+  margin: 0.3rem 0 0;
+}
+.tip .badge {
+  margin-right: 0.5rem;
+}
+.demo-banner {
+  background: #eef3ff;
+  border: 1px dashed #3b6fd4;
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+}
