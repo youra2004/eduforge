@@ -123,6 +123,9 @@ const envSchema = z
     PROCTOR_FOCUS_GRACE_SECONDS: seconds(3),
     PROCTOR_RISK_THRESHOLD: seconds(60),
 
+    // The Ed25519 private key that signs certificates: PKCS#8 DER in base64 (`pnpm generate-signing-key`). Secret: env only.
+    CERT_SIGNING_KEY: optional,
+
     AUDIT_MAX_ATTEMPTS: count(5),
     AUDIT_SCORING_RUNS: count(5),
     AUDIT_VOLUME_CAPS: volumeCaps,
@@ -206,6 +209,7 @@ function toConfig(env: z.infer<typeof envSchema>) {
       focusGraceSeconds: env.PROCTOR_FOCUS_GRACE_SECONDS,
       riskThreshold: env.PROCTOR_RISK_THRESHOLD,
     },
+    certificate: { signingKey: env.CERT_SIGNING_KEY },
     audit: {
       maxAttempts: env.AUDIT_MAX_ATTEMPTS,
       scoringRuns: env.AUDIT_SCORING_RUNS,

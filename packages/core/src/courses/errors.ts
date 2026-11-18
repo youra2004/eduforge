@@ -46,7 +46,13 @@ export type CourseErrorCode =
   | 'camera_required'
   | 'invalid_proctor_event'
   | 'strike_not_found'
-  | 'invalid_strike_state';
+  | 'invalid_strike_state'
+  | 'certificate_not_found'
+  | 'certificate_not_eligible'
+  | 'certificate_on_hold'
+  | 'certificate_unavailable'
+  | 'invalid_certificate_state'
+  | 'invalid_revocation';
 
 const httpStatus: Record<CourseErrorCode, number> = {
   invalid_course: 422,
@@ -95,6 +101,12 @@ const httpStatus: Record<CourseErrorCode, number> = {
   invalid_proctor_event: 422,
   strike_not_found: 404,
   invalid_strike_state: 409,
+  certificate_not_found: 404,
+  certificate_not_eligible: 409,
+  certificate_on_hold: 409,
+  certificate_unavailable: 503,
+  invalid_certificate_state: 409,
+  invalid_revocation: 422,
 };
 
 export class CourseError extends Error {

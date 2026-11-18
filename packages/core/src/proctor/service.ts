@@ -15,6 +15,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/guard';
 import { requireRole } from '../auth/guard';
+import { revokeCertificateOfAssessment } from '../certificate/service';
 import { loadConfig, type Config } from '../config';
 import { CourseError } from '../courses/errors';
 import type { Tx } from '../courses/service';
@@ -173,6 +174,8 @@ export async function annulAttempt(tx: Tx, a: Assessment, reason: string, now: D
       },
     })
     .where(eq(assessments.id, a.id));
+  // A pass that is annulled after the fact takes its certificate with it (F10-R4).
+  await revokeCertificateOfAssessment(tx, a.id, `proctor_violation: ${reason}`, now);
 }
 
 export async function appendEvents(
