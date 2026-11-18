@@ -1319,15 +1319,22 @@ dl.stats {
 .react-flow__controls-button {
   width: 28px;
   height: 28px;
+  min-height: 0;
+  padding: 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: var(--card);
   box-shadow: none;
   color: var(--text-2);
+  transform: none;
 }
 .react-flow__controls-button:hover:not(:disabled) {
   background: var(--surface-2);
+  color: var(--text);
+}
+.react-flow__controls-button:active:not(:disabled) {
+  transform: none;
 }
 .react-flow__handle {
   width: 8px;
