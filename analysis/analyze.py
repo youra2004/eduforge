@@ -29,12 +29,14 @@ def normalized_gain(pre: float, post: float):
     return None if pre >= 1 else (post - pre) / (1 - pre)
 
 
-def load(path: Path) -> list[dict]:
+def load(path: Path, allow_empty: bool = False) -> list[dict]:
     with path.open(newline="") as f:
-        rows = list(csv.DictReader(f))
-    if not rows:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        columns = reader.fieldnames or []
+    if not rows and not allow_empty:
         raise SystemExit(f"{path} has no rows.")
-    forbidden = [c for c in rows[0] if c in PERSONAL]
+    forbidden = [c for c in columns if c in PERSONAL]
     if forbidden:
         raise SystemExit(f"The input has personal columns {forbidden}; use the de-identified export.")
     return rows
@@ -50,13 +52,18 @@ def paired_by_participant(rows: list[dict], column: str):
     for r in rows:
         value = f(r[column])
         if value is not None:
-            by.setdefault(r["participant_code"], {})[r["condition"]] = value
+            slot = by.setdefault(r["participant_code"], {})
+            if r["condition"] in slot:
+                raise SystemExit(f"Duplicate row for {r['participant_code']} / {r['condition']}: the export is malformed.")
+            slot[r["condition"]] = value
     pairs = [(v["method"], v["control"]) for v in by.values() if "method" in v and "control" in v]
     return np.array(pairs, dtype=float).reshape(-1, 2)
 
 
 def cohens_d_paired(diff: np.ndarray) -> float:
-    return float(diff.mean() / diff.std(ddof=1)) if len(diff) > 1 and diff.std(ddof=1) > 0 else float("nan")
+    # scores are k/6 shares: differences equal "up to float noise" must count as equal (std 0), not as d = 1e15
+    sd = diff.std(ddof=1) if len(diff) > 1 else 0.0
+    return float(diff.mean() / sd) if sd > 1e-9 else float("nan")
 
 
 def bootstrap(diff: np.ndarray, stat, n_boot: int = 5000, alpha: float = 0.05):
@@ -64,6 +71,8 @@ def bootstrap(diff: np.ndarray, stat, n_boot: int = 5000, alpha: float = 0.05):
     idx = rng.integers(0, len(diff), size=(n_boot, len(diff)))
     values = np.array([stat(diff[i]) for i in idx])
     values = values[~np.isnan(values)]
+    if len(values) == 0:
+        return float("nan"), float("nan")
     return float(np.quantile(values, alpha / 2)), float(np.quantile(values, 1 - alpha / 2))
 
 
@@ -82,11 +91,12 @@ def min_detectable_d(n: int, power: float = 0.8, alpha: float = 0.05) -> float:
 
 
 def holm(pvalues: list[float]) -> list[float]:
-    order = np.argsort(pvalues)
+    """Holm-adjusted p-values; undefined (NaN) tests are left out of the family and stay NaN."""
+    defined = [i for i, p in enumerate(pvalues) if p == p]
     adjusted = [float("nan")] * len(pvalues)
     running = 0.0
-    for rank, i in enumerate(order):
-        running = max(running, min(1.0, (len(pvalues) - rank) * pvalues[i]))
+    for rank, i in enumerate(sorted(defined, key=lambda i: pvalues[i])):
+        running = max(running, min(1.0, (len(defined) - rank) * pvalues[i]))
         adjusted[i] = running
     return adjusted
 
@@ -106,14 +116,16 @@ def compare(pairs: np.ndarray) -> dict | None:
     if len(pairs) < 3:
         return None
     method, control = pairs[:, 0], pairs[:, 1]
-    diff = method - control
-    shapiro_p = float(stats.shapiro(diff).pvalue) if diff.std() > 0 else float("nan")
-    t_p = float(stats.ttest_rel(method, control).pvalue)
+    diff = np.round(method - control, 9)
+    shapiro_p = float(stats.shapiro(diff).pvalue) if diff.std() > 1e-9 else float("nan")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        t_p = float(stats.ttest_rel(method, control).pvalue) if diff.std() > 1e-9 else float("nan")
     w_p = wilcoxon_p(method, control)
     lo, hi = bootstrap(diff, np.mean)
     d_lo, d_hi = bootstrap(diff, cohens_d_paired)
     # rule fixed in advance: the Wilcoxon test when the differences are clearly non-normal (Shapiro p < .05)
-    use_w = shapiro_p < 0.05 and w_p == w_p
+    use_w = shapiro_p < 0.05 and w_p == w_p  # (choosing the test from the same data slightly inflates type I error)
     return {
         "n": len(pairs), "method_mean": method.mean(), "control_mean": control.mean(),
         "method_sd": method.std(ddof=1), "control_sd": control.std(ddof=1), "diff": diff.mean(),
@@ -130,7 +142,7 @@ def fmt_p(p: float) -> str:
 def outcome_table(rep: Report, results: dict[str, dict | None], out: Path) -> None:
     rows, csv_rows = [], []
     live = {k: v for k, v in results.items() if v}
-    adj = dict(zip(live, holm([v["p"] for v in live.values()]))) if live else {}
+    adj = dict(zip(live, holm([v["p"] for v in live.values()]))) if live else {}  # the family: the outcomes with a defined p
     for name, r in results.items():
         if r is None:
             rows.append([name, "<3", "too few complete pairs", "", "", "", "", "", ""])
@@ -160,13 +172,13 @@ def group_test(a: list[float], b: list[float]) -> str:
 
 
 def order_topic_effects(rep: Report, rows: list[dict]) -> None:
-    """RESEARCH.md §4.4: does the method-minus-control gain difference depend on the order or on the topic?"""
+    """RESEARCH.md §4.4: does the method-minus-control gain difference depend on the sequence or on the topic?"""
     per: dict[str, dict] = {}
     for r in rows:
         g = f(r["gain_post"])
         if g is None:
             continue
-        p = per.setdefault(r["participant_code"], {"order": r["order_variant"]})
+        p = per.setdefault(r["participant_code"], {})
         p[r["condition"]] = g
         p["period_" + r["condition"]] = int(r["period"])
         if r["condition"] == "method":
@@ -175,14 +187,18 @@ def order_topic_effects(rep: Report, rows: list[dict]) -> None:
         p["pre_" + r["module"]] = f(r["pretest"])
         p["post_" + r["module"]] = f(r["posttest"])
     full = {k: v for k, v in per.items() if "method" in v and "control" in v}
-    rep.add("### Order effect (A first vs B first)", "")
-    by_order: dict[str, list[float]] = {}
+    rep.add("### Sequence effect (method first vs control first)", "",
+            "The standard check of a two-period crossover: if (method − control) differs between the two sequences, "
+            "carry-over or a period effect is at work. In a two-period design carry-over cannot be separated from the "
+            "sequence, so this is an indication, not a correction.", "")
+    by_seq: dict[str, list[float]] = {}
     for v in full.values():
-        by_order.setdefault(v["order"], []).append(v["method"] - v["control"])
-    rep.table(["Order", "Participants", "Mean of (method − control) gain"],
-              [[k, len(v), f"{np.mean(v):+.3f}"] for k, v in sorted(by_order.items())])
-    keys = sorted(by_order)
-    rep.add(group_test(by_order[keys[0]], by_order[keys[1]]) if len(keys) == 2 else "Only one order group present.", "")
+        seq = "method first" if v["period_method"] == 1 else "control first"
+        by_seq.setdefault(seq, []).append(v["method"] - v["control"])
+    rep.table(["Sequence", "Participants", "Mean of (method − control) gain"],
+              [[k, len(v), f"{np.mean(v):+.3f}"] for k, v in sorted(by_seq.items())])
+    keys = sorted(by_seq)
+    rep.add(group_test(by_seq[keys[0]], by_seq[keys[1]]) if len(keys) == 2 else "Only one sequence group present.", "")
 
     rep.add("### Topic effect (which topic received the method)", "")
     by_topic: dict[str, list[float]] = {}
@@ -220,9 +236,9 @@ def tutor_section(rep: Report, path: Path, out: Path) -> None:
     if not path.exists():
         rep.add("No `tutor.csv` next to the data; H4 not analysed.", "")
         return
-    rows = [r for r in load(path)]
+    rows = load(path, allow_empty=True)
     if not rows:
-        rep.add("`tutor.csv` is empty.", "")
+        rep.add("`tutor.csv` has no replies (nobody used the tutor).", "")
         return
     n = len(rows)
     flagged = sum(r["first_draft_revealed"] == "true" for r in rows)
@@ -238,7 +254,9 @@ def tutor_section(rep: Report, path: Path, out: Path) -> None:
     rep.add("The guard flag measures what the guard **caught**, not what **leaked**: a reply that revealed the answer "
             "and passed the guard is invisible here. The actual leakage share needs the sampled manual review "
             "(`RESEARCH.md` §3); this analysis does not replace it. The share of drafts flagged is the "
-            "\"without guard\" side of H4, the share shown after the guard needs that review.", "")
+            "\"without guard\" side of H4, the share shown after the guard needs that review. Turns without a question "
+            "(free chat) are in the denominator, but the guard has no reference answer there and cannot flag them; the "
+            "export does not say which turns had a question, so the share is an underestimate.", "")
 
 
 def figures(out: Path, source: str, rows: list[dict], results: dict) -> list[str]:
@@ -287,6 +305,8 @@ def run(data_dir: Path, source: str, out: Path) -> Report:
     if marker.exists() and source != "synthetic":
         raise SystemExit(f"{marker} says the data are synthetic; refusing to label them '{source}'.")
     rows = load(data_dir / "modules.csv")
+    if source == "real" and any(r["participant_code"].startswith("SYN-") for r in rows):
+        raise SystemExit("Participant codes start with SYN-: these are synthetic data, not a real export.")
     # recompute the gain from pre and post, independently of the export's own column
     for r in rows:
         pre, post = f(r["pretest"]), f(r["posttest"])
@@ -297,6 +317,7 @@ def run(data_dir: Path, source: str, out: Path) -> Report:
     rep = Report("EduForge study: analysis of the export", source,
                  f"Input: `{data_dir / 'modules.csv'}`. {len(rows)} participant-module rows, {len(codes)} participants.")
 
+    perfect = sum(f(r["pretest"]) is not None and f(r["pretest"]) >= 1 for r in rows)
     h1, h2, h3 = (paired_by_participant(rows, c) for c in ("gain_post", "delayed_posttest", "active_seconds"))
     complete = min(len(h1), len(h2))
     rep.add("## Sample and power", "")
@@ -307,6 +328,8 @@ def run(data_dir: Path, source: str, out: Path) -> Report:
     if complete < UNDERPOWERED_BELOW:
         rep.add(f"- **Warning: fewer than {UNDERPOWERED_BELOW} complete pairs. Treat every p-value and interval below as "
                 "exploratory; do not read a non-significant result as \"no effect\".**")
+    if perfect:
+        rep.add(f"- {perfect} module(s) with a perfect pre-test have no normalized gain and are left out of H1 (RESEARCH §3).")
     rep.add("")
 
     rep.add("## Descriptives per condition (all modules)", "")
@@ -339,7 +362,7 @@ def run(data_dir: Path, source: str, out: Path) -> Report:
             survey_rows.append([item, len(pairs), "", "", "", "too few pairs"])
     rep.table(["Item", "Pairs", "Method mean", "Control mean", "Diff", "Wilcoxon p (uncorrected)"], survey_rows)
 
-    rep.add("## Order and topic effects", "")
+    rep.add("## Sequence, topic and period effects", "")
     order_topic_effects(rep, rows)
     tutor_section(rep, data_dir / "tutor.csv", out)
 
@@ -348,7 +371,7 @@ def run(data_dir: Path, source: str, out: Path) -> Report:
         rep.add("## Figures", "", *[f"- `{n}`" for n in figs], "")
     rep.add("## What this does not show", "",
             "- Non-random recruitment and a small sample limit generalization (`RESEARCH.md` §5).",
-            "- Carry-over between modules and non-equivalent topics are checked above, not removed.",
+            "- Carry-over cannot be separated from the sequence in a two-period crossover; the sequence, topic and period checks above are indications, not corrections.",
             "- Proctoring and the certificate are not part of any claim here.", "")
     rep.save(out / "results.md")
     return rep

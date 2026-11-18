@@ -20,11 +20,11 @@ Seed 20261118; 3000 students per scenario, 12 answers each on one skill. The app
 | mismatched | 0.719 [0.712, 0.725] | 0.699 [0.692, 0.705] | +0.020 [+0.016, +0.023] |
 | lucky_guessing | 0.720 [0.713, 0.726] | 0.663 [0.656, 0.670] | +0.057 [+0.052, +0.061] |
 
-Bootstrap over students (500 resamples). BKT and the share are both monotone in the number of correct answers, so their rankings can differ only through answer order and the prior; a small difference is expected.
+Bootstrap over students (500 resamples). Predictions are pooled over answer positions: the share divides by the number of answers so far and BKT does not, and BKT also weighs recent answers more; both contribute to the difference.
 
 ## Declaring mastery
 
-False positive = the rule fires while the student is, in truth, still in the unknown state. Delay = answers between the student truly learning and the rule firing (only for correct declarations). Missed = truly learned within 12 answers but never declared.
+These rules look at the stream continuously; the app gates after a node test of at least 3 questions per skill (F5-R3) with rounds, so none of these rates is the app's rate. False positive = the rule fires while the student is, in truth, still in the unknown state. Delay = answers between the student truly learning and the rule firing (only for correct declarations). Missed = truly learned within 12 answers but never declared.
 
 | Scenario | Rule | Declared | False positives | Median delay (answers) | Missed |
 |---|---|---|---|---|---|

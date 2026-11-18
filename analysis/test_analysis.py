@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import numpy as np
+
 import analyze
 import synthetic
 from common import Report, bkt_selfcheck, wilson
@@ -40,6 +42,19 @@ class Statistics(unittest.TestCase):
 
     def test_holm(self):
         self.assertEqual(analyze.holm([0.01, 0.04, 0.03]), [0.03, 0.06, 0.06])
+
+    def test_holm_leaves_undefined_tests_out(self):
+        nan = float("nan")
+        out = analyze.holm([nan, 0.01, 0.04])
+        self.assertEqual(out[1:], [0.02, 0.04])
+        self.assertTrue(out[0] != out[0])
+
+    def test_equal_differences_do_not_crash_or_explode(self):
+        # exactly equal differences, and differences equal up to float noise (k/6 scores)
+        for pairs in ([[.5, .25], [.75, .5], [1, .75]], [[1 / 6 + 1 / 3, 1 / 3], [0.5 + 1 / 6, 0.5], [2 / 3 + 1 / 6, 2 / 3]]):
+            r = analyze.compare(np.array(pairs))
+            self.assertTrue(r["d"] != r["d"])  # undefined, not 3e15
+            self.assertTrue(r["ci_lo"] == r["ci_lo"])
 
     def test_minimum_detectable_effect_shrinks_with_n(self):
         self.assertGreater(analyze.min_detectable_d(10), analyze.min_detectable_d(30))
@@ -82,6 +97,23 @@ class Pipeline(unittest.TestCase):
     def test_synthetic_data_cannot_be_labelled_real(self):
         with self.assertRaises(SystemExit):
             self.run_on(synthetic.generate(12, 3), source="real", marker=True)
+
+    def test_an_empty_tutor_file_does_not_stop_the_analysis(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = write_dataset(Path(tmp) / "data", synthetic.generate(12, 3))
+            (data / "tutor.csv").write_text(",".join(synthetic.TUTOR_COLUMNS) + "\n")
+            rep = analyze.run(data, "synthetic", Path(tmp) / "out")
+        self.assertIn("no replies", rep.text())
+
+    def test_the_sequence_check_splits_method_first_from_control_first(self):
+        rep = self.run_on(synthetic.generate(20, 3))
+        self.assertIn("method first", rep.text())
+        self.assertIn("control first", rep.text())
+        self.assertNotIn("A_then_B", rep.text())
+
+    def test_a_syn_prefixed_export_cannot_be_called_real(self):
+        with self.assertRaises(SystemExit):
+            self.run_on(synthetic.generate(12, 3), source="real", marker=False)
 
     def test_personal_columns_are_refused(self):
         with tempfile.TemporaryDirectory() as tmp:

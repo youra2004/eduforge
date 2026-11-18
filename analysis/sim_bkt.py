@@ -190,10 +190,12 @@ def main() -> None:
               [[r["scenario"], f"{r['bkt']:.3f} [{r['bkt_ci'][0]:.3f}, {r['bkt_ci'][1]:.3f}]",
                 f"{r['pct']:.3f} [{r['pct_ci'][0]:.3f}, {r['pct_ci'][1]:.3f}]",
                 f"{r['diff']:+.3f} [{r['diff_ci'][0]:+.3f}, {r['diff_ci'][1]:+.3f}]"] for r in auc_rows])
-    rep.add("Bootstrap over students (500 resamples). BKT and the share are both monotone in the number of correct "
-            "answers, so their rankings can differ only through answer order and the prior; a small difference is expected.", "")
+    rep.add("Bootstrap over students (500 resamples). Predictions are pooled over answer positions: the share divides by "
+            "the number of answers so far and BKT does not, and BKT also weighs recent answers more; both contribute "
+            "to the difference.", "")
     rep.add("## Declaring mastery", "",
-            "False positive = the rule fires while the student is, in truth, still in the unknown state. Delay = answers "
+            "These rules look at the stream continuously; the app gates after a node test of at least 3 questions per skill "
+            "(F5-R3) with rounds, so none of these rates is the app's rate. False positive = the rule fires while the student is, in truth, still in the unknown state. Delay = answers "
             "between the student truly learning and the rule firing (only for correct declarations). Missed = truly "
             f"learned within {QUESTIONS} answers but never declared.", "")
     rep.table(["Scenario", "Rule", "Declared", "False positives", "Median delay (answers)", "Missed"],

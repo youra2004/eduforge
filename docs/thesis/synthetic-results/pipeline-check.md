@@ -43,16 +43,18 @@ Differences are method − control. The primary test is fixed in advance: Wilcox
 | effort | 30 | 3.30 | 3.30 | +0.00 | 0.977 |
 | frustration | 30 | 3.60 | 3.40 | +0.20 | 0.500 |
 
-## Order and topic effects
+## Sequence, topic and period effects
 
-### Order effect (A first vs B first)
+### Sequence effect (method first vs control first)
 
-| Order | Participants | Mean of (method − control) gain |
+The standard check of a two-period crossover: if (method − control) differs between the two sequences, carry-over or a period effect is at work. In a two-period design carry-over cannot be separated from the sequence, so this is an indication, not a correction.
+
+| Sequence | Participants | Mean of (method − control) gain |
 |---|---|---|
-| A_then_B | 15 | +0.124 |
-| B_then_A | 15 | +0.163 |
+| control first | 15 | +0.137 |
+| method first | 15 | +0.151 |
 
-Welch p = 0.637, Mann–Whitney p = 0.771
+Welch p = 0.861, Mann–Whitney p = 1.000
 
 ### Topic effect (which topic received the method)
 
@@ -79,7 +81,7 @@ Pre-test A 0.350 vs B 0.361 (paired t p = 0.662); post-test A 0.611 vs B 0.572 (
 | First draft flagged by the guard as revealing the answer | 11 of 76 judged | 14.5 % | 8.3 % – 24.1 % |
 | Replies served from static hints (guard violation or provider error) | 7 of 76 | 9.2 % | 4.5 % – 17.8 % |
 
-The guard flag measures what the guard **caught**, not what **leaked**: a reply that revealed the answer and passed the guard is invisible here. The actual leakage share needs the sampled manual review (`RESEARCH.md` §3); this analysis does not replace it. The share of drafts flagged is the "without guard" side of H4, the share shown after the guard needs that review.
+The guard flag measures what the guard **caught**, not what **leaked**: a reply that revealed the answer and passed the guard is invisible here. The actual leakage share needs the sampled manual review (`RESEARCH.md` §3); this analysis does not replace it. The share of drafts flagged is the "without guard" side of H4, the share shown after the guard needs that review. Turns without a question (free chat) are in the denominator, but the guard has no reference answer there and cannot flag them; the export does not say which turns had a question, so the share is an underestimate.
 
 ## Figures
 
@@ -89,7 +91,7 @@ The guard flag measures what the guard **caught**, not what **leaked**: a reply 
 ## What this does not show
 
 - Non-random recruitment and a small sample limit generalization (`RESEARCH.md` §5).
-- Carry-over between modules and non-equivalent topics are checked above, not removed.
+- Carry-over cannot be separated from the sequence in a two-period crossover; the sequence, topic and period checks above are indications, not corrections.
 - Proctoring and the certificate are not part of any claim here.
 
 

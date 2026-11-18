@@ -22,7 +22,7 @@ analysis/run_all.sh
 | `sim_bkt.py`: BKT vs a percentage rule on synthetic students                                      | `bkt_results.md`, `bkt_detection.csv`, `fig_bkt_vs_percentage.png`                   | `…/bkt-vs-percentage.md`                          |
 | `pnpm simulate-tutor` + `tutor_report.py`: the real tutor pipeline with a scripted attacker model | `tutor_guard.csv`, `tutor_isolation.json`, `tutor_results.md`, `fig_tutor_guard.png` | `…/tutor-guard.md`                                |
 
-Re-running changes nothing: `git diff docs/thesis/synthetic-results` is empty afterwards.
+Re-running changes nothing: `git diff docs/thesis/synthetic-results` is empty afterwards. CI does the same check on Linux.
 Tests of the analysis code: `analysis/.venv/bin/python -m unittest discover -s analysis`.
 
 ## Real data
@@ -31,7 +31,7 @@ Tests of the analysis code: `analysis/.venv/bin/python -m unittest discover -s a
 2. `analysis/.venv/bin/python analysis/analyze.py <dir> --source real` writes `analysis/out/real/results.md`, `paired_tests.csv` and the figures.
 3. The source is mandatory. A `SYNTHETIC.txt` next to the data forces `synthetic`. Real results are never committed by the scripts.
 
-What `analyze.py` does: recomputes the normalized gain from the pre- and post-test (it does not trust the export's column), then reports descriptives, the paired comparison for H1 (gain), H2 (delayed post-test) and H3 (active time and questionnaire), Cohen's d for paired data with a bootstrap interval, a primary test fixed in advance (Wilcoxon if the differences are clearly non-normal, else paired t), Holm correction over the three outcomes, order, topic and period effects, a topic-equivalence check, a power note (the smallest effect the sample can detect) and, from `tutor.csv`, the share of drafts the guard flagged with a Wilson interval (H4). With fewer than 20 complete pairs the report carries a warning.
+What `analyze.py` does: recomputes the normalized gain from the pre- and post-test (it does not trust the export's column), then reports descriptives, the paired comparison for H1 (gain), H2 (delayed post-test) and H3 (active time and questionnaire), Cohen's d for paired data with a bootstrap interval, a primary test fixed in advance (Wilcoxon if the differences are clearly non-normal, else paired t), Holm correction over the three outcomes, sequence (method first vs control first), topic and period effects, a topic-equivalence check, a power note (the smallest effect the sample can detect) and, from `tutor.csv`, the share of drafts the guard flagged with a Wilson interval (H4). With fewer than 20 complete pairs the report carries a warning.
 
 ## What the supporting checks do not say
 
