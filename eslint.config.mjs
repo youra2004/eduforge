@@ -8,6 +8,8 @@ export default tseslint.config(
       '**/.next/**',
       '**/dist/**',
       '**/drizzle/**',
+      'analysis/.venv/**',
+      'analysis/out/**',
       '**/playwright-report/**',
       '**/test-results/**',
       '**/next-env.d.ts',

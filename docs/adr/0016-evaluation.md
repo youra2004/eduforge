@@ -1,0 +1,5 @@
+# ADR-0016: Evaluation and thesis materials
+
+- The analysis is Python (numpy, scipy, matplotlib, pinned); every report opens and closes with its source, `real` or `synthetic`, and `analyze.py` requires `--source` and refuses to call data with a `SYNTHETIC.txt` real. Real results are never written into the repository; only the text of the synthetic checks is committed (`docs/thesis/synthetic-results/`), so the thesis can cite it and CI can detect drift.
+- The simulations make no claim about learners or models: the BKT check uses a generator whose assumptions are stated, and the tutor check runs the real pipeline against a scripted attacker model and the Mock guard, on a scratch database that the script creates and drops. Auditor stability (optional in RESEARCH §7) is not run because it needs a real provider.
+- No real participant data existed at M13: the development database holds only e2e test accounts, so the results chapter is a pipeline, not a result. The designed → implemented → verified table cites test files, and names every behavior checked only on a Mock.

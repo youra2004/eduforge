@@ -11,4 +11,6 @@ test-results
 next-env.d.ts
 .local-agent
 CLAUDE.local.md
-analysis/synthetic/
+analysis/.venv/
+analysis/out/
+__pycache__/

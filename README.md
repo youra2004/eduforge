@@ -40,6 +40,8 @@ Certificate (M11): a passed exam gets a certificate signed with Ed25519 (course 
 
 Recommendations and demo (M12): every day at 06:00 the worker computes 7- and 30-day metrics per student in SQL and makes one LLM call (Mock for now) for up to three tips, shown on `/student`; it skips a student whose metrics have not changed. `DEMO_PASSWORD='choose-one' pnpm seed-demo` builds a demo environment on a clean database: a `[ДЕМО]` course, four students with different histories and an admin, all marked as demonstration data (`demo-*@demo.eduforge.local`, "(демо)" in the names). With `TIME_SCALE=1440` in the web app and the worker, a day lasts a minute and the job runs every minute. `/admin/demo` shows the scaled pauses and has a "Запустити зараз" button that runs the job and lists the result per student.
 
+Evaluation (M13): `analysis/` holds the study analysis (`analyze.py <export dir> --source real|synthetic`) and two supporting checks on **synthetic** data (BKT vs a percentage rule, the tutor guard on adversarial prompts); `analysis/run_all.sh` reproduces them from a clean checkout, see `analysis/README.md`. `docs/thesis/` has the designed → implemented → verified table (`STATUS.md`), the thesis chapter skeleton (`CHAPTERS.md`) and the committed text of the synthetic results. No real participant data exists yet, so nothing there is a result about the method.
+
 Node content (text and video) is edited on the node page, opened from the course graph. Uploaded videos go to `STORAGE_DIR`; embeddings and transcripts are made by the worker (mock providers by default, see `.env.example`).
 
 Check it: `curl localhost:3000/api/health` returns `{"ok":true,...}` once the worker has started.
