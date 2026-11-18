@@ -10,6 +10,7 @@ and, for H4, `tutor.csv`. The source must be declared with --source; a `SYNTHETI
 
 import argparse
 import csv
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -90,6 +91,16 @@ def holm(pvalues: list[float]) -> list[float]:
     return adjusted
 
 
+def wilcoxon_p(a: np.ndarray, b: np.ndarray) -> float:
+    """Wilcoxon signed-rank p, NaN when it is undefined (all differences zero, or too few distinct ones)."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            return float(stats.wilcoxon(a, b).pvalue)
+        except ValueError:
+            return float("nan")
+
+
 def compare(pairs: np.ndarray) -> dict | None:
     """Paired method-vs-control statistics for one outcome, or None when there are too few complete pairs."""
     if len(pairs) < 3:
@@ -98,10 +109,7 @@ def compare(pairs: np.ndarray) -> dict | None:
     diff = method - control
     shapiro_p = float(stats.shapiro(diff).pvalue) if diff.std() > 0 else float("nan")
     t_p = float(stats.ttest_rel(method, control).pvalue)
-    try:
-        w_p = float(stats.wilcoxon(method, control).pvalue)
-    except ValueError:  # all differences are zero
-        w_p = float("nan")
+    w_p = wilcoxon_p(method, control)
     lo, hi = bootstrap(diff, np.mean)
     d_lo, d_hi = bootstrap(diff, cohens_d_paired)
     # rule fixed in advance: the Wilcoxon test when the differences are clearly non-normal (Shapiro p < .05)
@@ -325,10 +333,7 @@ def run(data_dir: Path, source: str, out: Path) -> Report:
         pairs = paired_by_participant(rows, f"survey_{item}")
         if len(pairs) >= 3:
             diff = pairs[:, 0] - pairs[:, 1]
-            try:
-                w = fmt_p(float(stats.wilcoxon(pairs[:, 0], pairs[:, 1]).pvalue))
-            except ValueError:
-                w = "n/a"
+            w = fmt_p(wilcoxon_p(pairs[:, 0], pairs[:, 1]))
             survey_rows.append([item, len(pairs), f"{pairs[:, 0].mean():.2f}", f"{pairs[:, 1].mean():.2f}", f"{diff.mean():+.2f}", w])
         else:
             survey_rows.append([item, len(pairs), "", "", "", "too few pairs"])
