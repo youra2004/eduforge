@@ -51,11 +51,31 @@ def generate(n: int, seed: int, true_effect: float = 0.15) -> list[dict]:
     return rows
 
 
+TUTOR_COLUMNS = ["participant_code", "module", "condition", "hint_level", "source", "fallback_reason", "first_draft_revealed"]
+
+
+def generate_tutor(rows: list[dict], seed: int) -> list[dict]:
+    """One row per tutor reply of a method module. The share of flagged drafts (8 %) is our own choice, not a finding."""
+    rng = np.random.default_rng(seed + 1)
+    out = []
+    for r in rows:
+        for k in range(r["tutor_questions"]):
+            flagged = bool(rng.random() < 0.08)
+            fallback = flagged and bool(rng.random() < 0.7)
+            out.append({
+                "participant_code": r["participant_code"], "module": r["module"], "condition": r["condition"],
+                "hint_level": min(k, 2) + 1, "source": "static" if fallback else "llm",
+                "fallback_reason": "guard_violation" if fallback else "",
+                "first_draft_revealed": "true" if flagged else "false",
+            })
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=20261117)
-    ap.add_argument("--out", type=Path, default=Path("analysis/synthetic/modules.csv"))
+    ap.add_argument("--out", type=Path, default=Path(__file__).parent / "out" / "synthetic-data" / "modules.csv")
     args = ap.parse_args()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     rows = generate(args.n, args.seed)
@@ -64,10 +84,15 @@ def main() -> None:
         w.writeheader()
         for r in rows:
             w.writerow({k: "" if v is None else v for k, v in r.items()})
+    tutor = generate_tutor(rows, args.seed)
+    with args.out.with_name("tutor.csv").open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=TUTOR_COLUMNS)
+        w.writeheader()
+        w.writerows(tutor)
     # the banner lives next to the data, so the file cannot be mistaken for a real export
     args.out.with_name("SYNTHETIC.txt").write_text(BANNER + f"\nseed={args.seed} n={args.n}\n")
     print(BANNER, file=sys.stderr)
-    print(f"wrote {len(rows)} rows to {args.out}")
+    print(f"wrote {len(rows)} rows to {args.out} and {len(tutor)} tutor replies to tutor.csv")
 
 
 if __name__ == "__main__":
