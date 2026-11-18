@@ -81,6 +81,9 @@ export default async function Home() {
             .filter((s) => !('role' in s) || user.roles.includes(s.role))
             .map((s) => (
               <Link key={s.href} href={s.href} className="card link shortcut">
+                <span className="go" aria-hidden>
+                  <Icon name="arrow-right" size={16} />
+                </span>
                 <span className="pillar-icon">
                   <Icon name={s.icon} size={18} />
                 </span>

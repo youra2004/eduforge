@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { sendJson } from '@/lib/client';
+import { toast } from './Toaster';
 
 /** An admin picks the expert for a course under review (D-03, D-10). */
 export function ReviewAssign({
@@ -31,6 +32,7 @@ export function ReviewAssign({
     });
     setBusy(false);
     if (!res.ok) return setErrors(res.errors);
+    toast('Експерта призначено');
     router.refresh();
   }
 

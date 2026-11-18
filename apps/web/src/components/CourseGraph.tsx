@@ -1,7 +1,7 @@
 'use client';
 
 import '@xyflow/react/dist/style.css';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Background,
@@ -29,12 +29,15 @@ export interface GraphNodeData extends Record<string, unknown> {
   note?: string;
   /** In the editor a node can be dragged, selected and connected; its title still opens the node. */
   editing?: boolean;
+  /** While another node is hovered: this node is on its path (hot) or not (dim). */
+  focus?: 'hot' | 'dim';
 }
 
 function CourseNode({ data }: NodeProps<Node<GraphNodeData>>) {
   return (
     <div
-      className={`graph-node ${data.state}${data.editing ? ' editing' : ''}`}
+      className={`graph-node ${data.state}${data.editing ? ' editing' : ''}${data.focus ? ` ${data.focus}` : ''}`}
+      data-summary={data.editing ? undefined : data.summary || undefined}
       data-testid="graph-node"
     >
       <Handle type="target" position={Position.Top} isConnectable={!!data.editing} />
@@ -80,10 +83,39 @@ export function CourseGraph({
   const [flowNodes, setFlowNodes, onNodesChange] = useNodesState(nodes);
   useEffect(() => setFlowNodes(nodes), [nodes, setFlowNodes]);
 
+  // Hovering a node lights everything it depends on and everything it unlocks, and dims the rest.
+  const [hovered, setHovered] = useState<string | null>(null);
+  const path = useMemo(() => {
+    if (!hovered) return null;
+    const walk = (next: (e: { source: string; target: string }) => [string, string]) => {
+      const seen = new Set<string>([hovered]);
+      for (let grew = true; grew;) {
+        grew = false;
+        for (const e of edges) {
+          const [from, to] = next(e);
+          if (seen.has(from) && !seen.has(to)) {
+            seen.add(to);
+            grew = true;
+          }
+        }
+      }
+      return seen;
+    };
+    const up = walk((e) => [e.target, e.source]);
+    const down = walk((e) => [e.source, e.target]);
+    return { nodes: new Set([...up, ...down]), up, down };
+  }, [hovered, edges]);
+
   const flowEdges: Edge[] = edges.map((e) => ({
     ...e,
-    markerEnd: { type: MarkerType.ArrowClosed, color: '#b9bdcb', width: 16, height: 16 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--edge-strong)', width: 16, height: 16 },
     selected: e.id === editing?.selectedEdgeId,
+    className: path
+      ? (path.up.has(e.source) && path.up.has(e.target)) ||
+        (path.down.has(e.source) && path.down.has(e.target))
+        ? 'hot'
+        : 'dim'
+      : undefined,
   }));
   const shown = editing
     ? flowNodes.map((n) => ({
@@ -91,7 +123,12 @@ export function CourseGraph({
         selected: n.id === editing.selectedNodeId,
         data: { ...n.data, editing: true },
       }))
-    : flowNodes;
+    : path
+      ? flowNodes.map((n) => ({
+          ...n,
+          data: { ...n.data, focus: path.nodes.has(n.id) ? ('hot' as const) : ('dim' as const) },
+        }))
+      : flowNodes;
 
   return (
     <div className="graph-canvas" data-testid="course-graph">
@@ -111,6 +148,8 @@ export function CourseGraph({
         }
         onNodeDragStop={(_e, node) => editing?.onMove(node.id, node.position)}
         onEdgeClick={(_e, edge) => editing?.onSelectEdge(edge.id)}
+        onNodeMouseEnter={(_e, node) => !editing && setHovered(node.id)}
+        onNodeMouseLeave={() => setHovered(null)}
         // A node click opens the node page, or selects the node in the editor. Handling it also lets React Flow give nodes pointer events.
         onNodeClick={(event, node) => {
           // The title is a link: in the editor it opens the node, a click elsewhere on the node selects it.

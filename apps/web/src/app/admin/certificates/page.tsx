@@ -1,5 +1,6 @@
 import { listCertificates } from '@eduforge/core';
 import Link from 'next/link';
+import { TableSearch } from '@/components/TableSearch';
 import { RevokeCertificate } from '@/components/RevokeCertificate';
 import { EmptyState, PageHeader } from '@/components/ui';
 import { requirePageRole } from '@/lib/pages';
@@ -22,45 +23,52 @@ export default async function CertificatesPage() {
           Сертифікат зʼявиться тут, коли студент складе фінальний іспит.
         </EmptyState>
       ) : (
-        <table data-testid="certificates">
-          <thead>
-            <tr>
-              <th>Власник</th>
-              <th>Курс</th>
-              <th>Видано</th>
-              <th>Стан</th>
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((c) => (
-              <tr key={c.id} data-testid="certificate-row">
-                <td>
-                  {c.holderName} <span className="muted">{c.holderEmail}</span>
-                </td>
-                <td>
-                  {c.title} <span className="muted">v{c.version}</span> · {c.scorePct} %
-                </td>
-                <td>
-                  <Link href={`/verify/${c.id}`}>{c.issuedAt.toLocaleDateString('uk-UA')}</Link>
-                </td>
-                <td>
-                  {c.revokedAt ? (
-                    <span className="badge bad" data-testid="certificate-state">
-                      Відкликано {c.revokedAt.toLocaleDateString('uk-UA')}: {c.revokeReason}
-                    </span>
-                  ) : (
-                    <>
-                      <span className="badge ok" data-testid="certificate-state">
-                        Дійсний
-                      </span>
-                      <RevokeCertificate certificateId={c.id} />
-                    </>
-                  )}
-                </td>
+        <>
+          <TableSearch
+            target="certificates-table"
+            placeholder="Знайти за власником або курсом"
+            label="Пошук сертифікатів"
+          />
+          <table data-testid="certificates" id="certificates-table">
+            <thead>
+              <tr>
+                <th>Власник</th>
+                <th>Курс</th>
+                <th>Видано</th>
+                <th>Стан</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {list.map((c) => (
+                <tr key={c.id} data-testid="certificate-row">
+                  <td>
+                    {c.holderName} <span className="muted">{c.holderEmail}</span>
+                  </td>
+                  <td>
+                    {c.title} <span className="muted">v{c.version}</span> · {c.scorePct} %
+                  </td>
+                  <td>
+                    <Link href={`/verify/${c.id}`}>{c.issuedAt.toLocaleDateString('uk-UA')}</Link>
+                  </td>
+                  <td>
+                    {c.revokedAt ? (
+                      <span className="badge bad" data-testid="certificate-state">
+                        Відкликано {c.revokedAt.toLocaleDateString('uk-UA')}: {c.revokeReason}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="badge ok" data-testid="certificate-state">
+                          Дійсний
+                        </span>
+                        <RevokeCertificate certificateId={c.id} />
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </div>
   );

@@ -1,9 +1,17 @@
-import { EXPORT_TABLES, listExperts, listReviewQueue, listUsers } from '@eduforge/core';
+import {
+  EXPORT_TABLES,
+  listCertificates,
+  listExperts,
+  listReviewQueue,
+  listStrikeQueue,
+  listUsers,
+} from '@eduforge/core';
 import Link from 'next/link';
 import { Icon } from '@/components/icons';
 import { EmptyState, PageHeader } from '@/components/ui';
 import { ReviewAssign } from '@/components/ReviewAssign';
 import { RoleEditor } from '@/components/RoleEditor';
+import { TableSearch } from '@/components/TableSearch';
 import { reviewStatusLabels } from '@/lib/messages';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
@@ -15,13 +23,59 @@ export default async function AdminPage() {
   const users = await listUsers(getDb(), admin);
   const queue = await listReviewQueue(getDb(), admin);
   const experts = await listExperts(getDb(), admin);
+  const strikes = await listStrikeQueue(getDb(), admin);
+  const certificates = await listCertificates(getDb(), admin);
+  const tiles = [
+    { n: users.length, what: 'користувачів', href: '#users-table', attention: false },
+    {
+      n: queue.length,
+      what: 'курсів чекають на експерта',
+      href: '#review-queue',
+      attention: queue.some((q) => !q.review),
+    },
+    {
+      n: strikes.length,
+      what: 'справ про порушення',
+      href: '/admin/strikes',
+      attention: strikes.length > 0,
+    },
+    {
+      n: certificates.filter((c) => !c.revokedAt).length,
+      what: 'дійсних сертифікатів',
+      href: '/admin/certificates',
+      attention: false,
+    },
+  ];
   return (
     <div className="page">
       <PageHeader
         title="Користувачі та ролі"
         lead="Керуйте ролями, чергою експертної перевірки та службовими розділами."
       />
-      <table>
+      <div className="tiles" data-testid="admin-overview">
+        {tiles.map((t) => (
+          <Link
+            key={t.what}
+            href={t.href}
+            className={`card link tile${t.attention ? ' attention' : ''}`}
+          >
+            <span
+              className="num count-up"
+              style={{ '--n': t.n } as React.CSSProperties}
+              role="img"
+              aria-label={String(t.n)}
+            />
+            <span className="what">{t.what}</span>
+          </Link>
+        ))}
+      </div>
+      <h2>Користувачі</h2>
+      <TableSearch
+        target="users-table"
+        placeholder="Знайти користувача за імʼям або email"
+        label="Пошук користувачів"
+      />
+      <table id="users-table">
         <thead>
           <tr>
             <th>Імʼя</th>
@@ -42,7 +96,7 @@ export default async function AdminPage() {
         </tbody>
       </table>
 
-      <h2>Черга експертної перевірки</h2>
+      <h2 id="review-queue">Черга експертної перевірки</h2>
       <p className="hint">
         Курси, що претендують на рейтинг 10, не публікуються без експерта. Призначте експерта для
         кожного.
@@ -89,6 +143,9 @@ export default async function AdminPage() {
       <h2>Службові розділи</h2>
       <div className="grid">
         <Link href="/admin/strikes" className="card link shortcut" data-testid="strikes-link">
+          <span className="go" aria-hidden>
+            <Icon name="arrow-right" size={16} />
+          </span>
           <span className="pillar-icon">
             <Icon name="alert" size={18} />
           </span>
@@ -100,6 +157,9 @@ export default async function AdminPage() {
           className="card link shortcut"
           data-testid="certificates-link"
         >
+          <span className="go" aria-hidden>
+            <Icon name="arrow-right" size={16} />
+          </span>
           <span className="pillar-icon">
             <Icon name="award" size={18} />
           </span>
@@ -107,6 +167,9 @@ export default async function AdminPage() {
           <span>Переглянути видані сертифікати й відкликати їх</span>
         </Link>
         <Link href="/admin/demo" className="card link shortcut" data-testid="demo-link">
+          <span className="go" aria-hidden>
+            <Icon name="arrow-right" size={16} />
+          </span>
           <span className="pillar-icon">
             <Icon name="sliders" size={18} />
           </span>

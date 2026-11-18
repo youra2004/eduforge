@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
 import { TutorChat } from './TutorChat';
+import { Confetti } from './Confetti';
 import { PageHeader } from './ui';
 
 export interface AssessmentView {
@@ -84,7 +85,14 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
     return (
       <div data-testid="test-result">
         <div className={`result-hero ${r.passed ? 'ok' : 'bad'}`}>
-          <span className="result-score">{Math.round(r.scorePct ?? 0)} %</span>
+          {r.passed && <Confetti />}
+          <span
+            className="result-score count-up"
+            style={{ '--n': Math.round(r.scorePct ?? 0) } as React.CSSProperties}
+            data-suffix=" %"
+            role="img"
+            aria-label={`${Math.round(r.scorePct ?? 0)} %`}
+          />
           <div>
             <h1 data-testid="result-verdict">
               {r.passed ? 'Вузол пройдено' : 'Поки що не пройдено'}

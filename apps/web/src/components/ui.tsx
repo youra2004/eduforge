@@ -6,18 +6,18 @@ import { Icon, type IconName } from './icons';
 export function BrandMark({ className = 'brand-mark' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 32 32" aria-hidden focusable="false">
-      <rect width="32" height="32" rx="9" fill="#0f1115" />
+      <rect width="32" height="32" rx="9" style={{ fill: 'var(--text)' }} />
       <path
         d="M16 10.5C16 16 9 15.5 9 21.5M16 10.5C16 16 23 15.5 23 21.5"
         fill="none"
-        stroke="#fff"
+        style={{ stroke: 'var(--bg)' }}
         strokeOpacity=".5"
         strokeWidth="1.6"
         strokeLinecap="round"
       />
-      <circle cx="16" cy="9.5" r="3.4" fill="#8b7dff" />
-      <circle cx="9" cy="22" r="3" fill="#fff" />
-      <circle cx="23" cy="22" r="3" fill="#fff" />
+      <circle cx="16" cy="9.5" r="3.4" fill="#7b6dff" />
+      <circle cx="9" cy="22" r="3" style={{ fill: 'var(--bg)' }} />
+      <circle cx="23" cy="22" r="3" style={{ fill: 'var(--bg)' }} />
     </svg>
   );
 }

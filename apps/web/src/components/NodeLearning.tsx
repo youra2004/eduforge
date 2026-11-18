@@ -140,7 +140,7 @@ export function NodeLearning(p: NodeLearningProps) {
             onSubmit={answerPractice}
           />
           {verdict !== null && (
-            <p data-testid="practice-verdict" className={verdict ? 'callout ok' : 'error'}>
+            <p data-testid="practice-verdict" className={verdict ? 'callout ok' : 'error shake'}>
               {verdict
                 ? 'Вірно!'
                 : 'Поки що невірно. Перегляньте матеріал і спробуйте інше питання.'}{' '}

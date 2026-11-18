@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { roleLabels } from '@/lib/messages';
+import { toast } from './Toaster';
 
 const allRoles = ['student', 'author', 'expert', 'admin'] as const;
 
@@ -27,7 +28,7 @@ export function RoleEditor({ userId, roles }: { userId: string; roles: string[] 
       const data = (await res.json().catch(() => null)) as { message?: string } | null;
       setError(data?.message ?? 'Щось пішло не так. Спробуйте ще раз.');
       apply(!on);
-    }
+    } else toast('Ролі оновлено');
     setBusy(false);
     router.refresh();
   }

@@ -9,6 +9,7 @@ import { IssueCertificate } from './IssueCertificate';
 import { ExamProctor, type ProctorView } from './ExamProctor';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
 import { StrikeAppeal } from './StrikeAppeal';
+import { Confetti } from './Confetti';
 import { PageHeader } from './ui';
 
 export interface ExamViewData {
@@ -263,7 +264,14 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
     return (
       <div data-testid="exam-result">
         <div className={`result-hero ${r.passed ? 'ok' : 'bad'}`}>
-          <span className="result-score">{Math.round(r.scorePct ?? 0)} %</span>
+          {r.passed && <Confetti />}
+          <span
+            className="result-score count-up"
+            style={{ '--n': Math.round(r.scorePct ?? 0) } as React.CSSProperties}
+            data-suffix=" %"
+            role="img"
+            aria-label={`${Math.round(r.scorePct ?? 0)} %`}
+          />
           <div>
             <h1 data-testid="exam-verdict">{r.passed ? 'Іспит складено' : 'Іспит не складено'}</h1>
             <p className="muted">
