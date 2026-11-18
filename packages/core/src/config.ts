@@ -110,6 +110,18 @@ const envSchema = z
 
     SNAPSHOT_INTERVAL_SECONDS: seconds(60),
     EVIDENCE_RETENTION_DAYS: seconds(30),
+    PROCTOR_PROVIDER: z.enum(['mock', 'real']).default('mock'),
+    PROCTOR_SERVICE_URL: optional,
+    // 32 bytes as 64 hex characters (`openssl rand -hex 32`). Secrets live only in env; evidence cannot be stored without it.
+    EVIDENCE_KEY: z.preprocess(
+      blankToUndefined,
+      z
+        .string()
+        .regex(/^[0-9a-fA-F]{64}$/)
+        .optional(),
+    ),
+    PROCTOR_FOCUS_GRACE_SECONDS: seconds(3),
+    PROCTOR_RISK_THRESHOLD: seconds(60),
 
     AUDIT_MAX_ATTEMPTS: count(5),
     AUDIT_SCORING_RUNS: count(5),
@@ -141,7 +153,11 @@ const envSchema = z
       !(e.EMBEDDING_PROVIDER === 'openai' || e.TRANSCRIPTION_PROVIDER === 'openai') ||
       e.OPENAI_API_KEY,
     { path: ['OPENAI_API_KEY'], message: 'required when a provider is set to openai' },
-  );
+  )
+  .refine((e) => e.PROCTOR_PROVIDER !== 'real' || e.PROCTOR_SERVICE_URL, {
+    path: ['PROCTOR_SERVICE_URL'],
+    message: 'required when PROCTOR_PROVIDER is real',
+  });
 
 export type Config = ReturnType<typeof toConfig>;
 
@@ -184,6 +200,11 @@ function toConfig(env: z.infer<typeof envSchema>) {
     proctoring: {
       snapshotIntervalSeconds: env.SNAPSHOT_INTERVAL_SECONDS,
       evidenceRetentionDays: env.EVIDENCE_RETENTION_DAYS,
+      provider: env.PROCTOR_PROVIDER,
+      serviceUrl: env.PROCTOR_SERVICE_URL,
+      evidenceKey: env.EVIDENCE_KEY,
+      focusGraceSeconds: env.PROCTOR_FOCUS_GRACE_SECONDS,
+      riskThreshold: env.PROCTOR_RISK_THRESHOLD,
     },
     audit: {
       maxAttempts: env.AUDIT_MAX_ATTEMPTS,

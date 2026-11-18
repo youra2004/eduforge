@@ -7,6 +7,7 @@ import {
   nodes,
   questions,
   skills,
+  strikes,
   users,
   type Assessment,
   type AssessmentItem,
@@ -23,7 +24,9 @@ import { loadConfig } from '../config';
 import { CourseError, type CourseErrorCode } from '../courses/errors';
 import type { CourseIssue } from '../courses/graph';
 import { loadVersion, type Tx } from '../courses/service';
+import { hasCurrentConsent } from '../auth/consent';
 import { logEvent } from '../learning/events';
+import { isCameraReady, proctorSettings, type ProctorSettings } from '../proctor/service';
 import { toStudentQuestion } from '../questions/dto';
 import { gradeAnswer } from '../questions/grading';
 import { studentAnswer } from '../questions/schema';
@@ -51,6 +54,8 @@ export interface ExamSettings {
   cooldownSeconds: number;
   maxInterruptions: number;
   openPassThreshold: number;
+  /** Proctoring (M10): consent before the start, the camera gate, the pace of frame checks. */
+  proctor: ProctorSettings;
 }
 
 /** The exam's settings from env config, with the pause already scaled for demo mode (P2, D-32). */
@@ -67,6 +72,7 @@ export function examSettings(config = loadConfig()): ExamSettings {
     cooldownSeconds: examCooldownSeconds(config),
     maxInterruptions: config.exam.maxInterruptions,
     openPassThreshold: config.questions.openPassThreshold,
+    proctor: proctorSettings(config),
   };
 }
 
@@ -296,6 +302,13 @@ async function present(db: Db | Tx, s: Settled, settings: ExamSettings, now: Dat
   const cur = current && rows.find((r) => r.item.id === current.id);
   const meta = a.meta as { reason?: string };
   const finished = a.status === 'passed' || a.status === 'failed';
+  const proctorOn = settings.proctor.enabled;
+  // The question leaves the server only after the camera and the reference photo were reported (F9-R1, D-27).
+  const ready = !proctorOn || !running || (await isCameraReady(db, a.id));
+  const violation =
+    a.status === 'annulled' && meta.reason === 'proctor_violation'
+      ? await attemptViolation(db, a.id)
+      : null;
   const state = finished
     ? examRounds(await attemptRows(db, a.userId, a.courseVersionId), roundRules(settings), now)
     : null;
@@ -314,7 +327,7 @@ async function present(db: Db | Tx, s: Settled, settings: ExamSettings, now: Dat
     deadlineAt: a.deadlineAt,
     // One question at a time and no way back: nothing but the current question leaves the server (D-18b).
     current:
-      running && current && cur
+      running && current && cur && ready
         ? {
             itemId: cur.item.id,
             position: answered + 1,
@@ -325,6 +338,15 @@ async function present(db: Db | Tx, s: Settled, settings: ExamSettings, now: Dat
           }
         : null,
     canResume: a.status === 'interrupted' && a.interruptions <= settings.maxInterruptions,
+    proctor: {
+      enabled: proctorOn,
+      ready,
+      // Demo mode: the browser may name the scenario the mock checker plays (never in real mode).
+      mock: settings.proctor.mock,
+      snapshotIntervalSeconds: settings.proctor.snapshotIntervalSeconds,
+      focusGraceSeconds: settings.proctor.focusGraceSeconds,
+    },
+    violation,
     // No verdicts per question: the exam pool is not to be learned from (F3-R2).
     result:
       finished && state
@@ -341,6 +363,21 @@ async function present(db: Db | Tx, s: Settled, settings: ExamSettings, now: Dat
   };
 }
 export type ExamView = Awaited<ReturnType<typeof present>>;
+
+/** The strike behind an attempt a violation stopped, for the page that tells the student what happened. */
+async function attemptViolation(db: Db | Tx, assessmentId: string) {
+  const [row] = await db.select().from(strikes).where(eq(strikes.assessmentId, assessmentId));
+  if (!row) return null;
+  return {
+    strikeId: row.id,
+    reason: row.reason,
+    status: row.status,
+    level: row.level,
+    banUntil: row.banUntil,
+    forever: row.level >= 3,
+    canAppeal: row.status === 'confirmed' && row.resolvedAt === null,
+  };
+}
 
 // ---------------------------------------------------------------- eligibility
 
@@ -455,6 +492,8 @@ export async function getExamStatus(
     title: version.title,
     nodes: progress,
     ban: banned,
+    proctoringConsent: await hasCurrentConsent(db, actor.id, 'proctoring'),
+    proctoringRequired: settings.proctor.enabled,
     passed: state.passed,
     runningId: running?.id ?? null,
     interrupted: interrupted
@@ -503,6 +542,10 @@ export async function startExam(
 ) {
   const { version, user: actor } = await loadVersion(db, student(user), versionId);
   if (version.status !== 'published') throw new CourseError('version_not_published');
+  // F9-R1: no exam without the student's explicit consent to frame capture and checking.
+  if (settings.proctor.enabled && !(await hasCurrentConsent(db, actor.id, 'proctoring'))) {
+    throw new CourseError('consent_required');
+  }
   const id = await db.transaction(async (tx) => {
     await lockUserExam(tx, actor.id, versionId);
     for (const row of await attemptRows(tx, actor.id, versionId)) {
@@ -634,6 +677,9 @@ export async function saveExamDraft(
   const own = await loadOwnExam(db, actor, examId);
   const s = await db.transaction((tx) => settle(tx, own.id, settings, now));
   if (s.current?.id !== itemId) throw refuse(s, itemId);
+  if (settings.proctor.enabled && !(await isCameraReady(db, own.id))) {
+    throw new CourseError('camera_required');
+  }
   const row = s.rows.find((r) => r.item.id === itemId)!;
   const parsed = studentAnswer[row.question.kind].safeParse(answer);
   if (!parsed.success) throw new CourseError('invalid_question');
@@ -666,6 +712,9 @@ export async function answerExam(
     const s = await settle(tx, own.id, settings, now);
     // Returned, not thrown: the questions the clock just closed must stay closed.
     if (s.current?.id !== itemId) return { refusal: refuse(s, itemId) };
+    if (settings.proctor.enabled && !(await isCameraReady(tx, own.id))) {
+      return { refusal: new CourseError('camera_required') };
+    }
     const q = s.rows.find((r) => r.item.id === itemId)!.question;
     if (!studentAnswer[q.kind].safeParse(answer).success) {
       return { refusal: new CourseError('invalid_question') };

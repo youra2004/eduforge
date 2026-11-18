@@ -79,6 +79,12 @@ export default async function AdminPage() {
           </tbody>
         </table>
       )}
+      <h2>Порушення на іспитах</h2>
+      <p>
+        <Link href="/admin/strikes" data-testid="strikes-link">
+          Відкрити чергу порушень та апеляцій
+        </Link>
+      </p>
       <h2>Експорт дослідження</h2>
       <p className="hint">
         CSV без email та імен: людей позначає лише код учасника. Для скриптів у{' '}
