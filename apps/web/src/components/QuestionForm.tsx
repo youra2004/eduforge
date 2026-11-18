@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Markdown } from './Markdown';
 
 export interface StudentQuestion {
@@ -34,10 +34,19 @@ export function QuestionForm({
   // Keyboard: 1-9 pick an option, Enter sends the pick. Ignored while typing somewhere else.
   const mcq = question.kind === 'mcq';
   const count = question.options?.length ?? 0;
+  const formRef = useRef<HTMLFormElement>(null);
   useEffect(() => {
     if (!mcq) return;
     function onKey(e: KeyboardEvent) {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      // Nothing happens while the answer is being sent, after it was graded, or behind an open dialog.
+      if (
+        busy ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.altKey ||
+        document.querySelector('[aria-modal="true"]')
+      )
+        return;
       const t = e.target as HTMLElement;
       const typing =
         t instanceof HTMLTextAreaElement ||
@@ -51,7 +60,7 @@ export function QuestionForm({
       } else if (
         e.key === 'Enter' &&
         choice !== null &&
-        !busy &&
+        (t === document.body || formRef.current?.contains(t)) &&
         !(t instanceof HTMLButtonElement)
       ) {
         e.preventDefault();
@@ -70,7 +79,7 @@ export function QuestionForm({
   }
 
   return (
-    <form onSubmit={submit} data-testid="question-form">
+    <form ref={formRef} onSubmit={submit} data-testid="question-form">
       <div className="markdown" data-testid="question-prompt">
         <Markdown>{question.promptMd}</Markdown>
       </div>

@@ -24,11 +24,13 @@ export function CommandPalette({ links }: { links: PaletteLink[] }) {
   const [active, setActive] = useState(0);
   const [courses, setCourses] = useState<PaletteLink[] | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const opener = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
+        opener.current = document.activeElement as HTMLElement | null;
         setOpen((o) => !o);
       }
     }
@@ -69,6 +71,7 @@ export function CommandPalette({ links }: { links: PaletteLink[] }) {
 
   function close() {
     setOpen(false);
+    opener.current?.focus();
     setQuery('');
     setActive(0);
   }
@@ -80,6 +83,8 @@ export function CommandPalette({ links }: { links: PaletteLink[] }) {
     if (e.key === 'Escape') {
       e.preventDefault();
       close();
+    } else if (e.key === 'Tab') {
+      e.preventDefault(); // the search box is the only stop: focus stays inside the dialog
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault();
       if (flat.length === 0) return;
@@ -112,7 +117,10 @@ export function CommandPalette({ links }: { links: PaletteLink[] }) {
       <button
         type="button"
         className="secondary sm palette-trigger"
-        onClick={() => setOpen(true)}
+        onClick={(e) => {
+          opener.current = e.currentTarget;
+          setOpen(true);
+        }}
         aria-label="Швидкий перехід"
         aria-keyshortcuts="Control+K Meta+K"
       >
