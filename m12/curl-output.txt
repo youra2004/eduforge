@@ -1,0 +1,36 @@
+# Real HTTP calls against `next dev` (TIME_SCALE=1440, Mock LLM, clean DB seeded by `pnpm seed-demo`)
+$ student POSTs /api/admin/recommendations/run
+{"error":"forbidden","message":"Недостатньо прав для цієї дії."}
+HTTP 403
+$ anonymous POST
+{"error":"unauthenticated","message":"Потрібно увійти в систему."}
+HTTP 401
+$ admin POST /api/admin/recommendations/run (#1)
+{'created': 3, 'unchanged': 3, 'already_today': 0, 'no_data': 2, 'failed': 0}
+  demo-iryna@demo.eduforge.local created
+  demo-maksym@demo.eduforge.local no_data
+  demo-olena@demo.eduforge.local created
+  demo-taras@demo.eduforge.local created
+$ admin POST /api/admin/recommendations/run (#2)
+{'created': 0, 'unchanged': 3, 'already_today': 3, 'no_data': 2, 'failed': 0}
+  demo-iryna@demo.eduforge.local already_today
+  demo-maksym@demo.eduforge.local no_data
+  demo-olena@demo.eduforge.local already_today
+  demo-taras@demo.eduforge.local already_today
+$ student dashboard HTML (taras): recommendation cards
+3 tips
+['Повторіть вузол «Типи даних і оператори»', 'Підтягніть навичку «Оператори»', 'Ви рухаєтеся вперед']
+$ llm_runs
+    purpose     | model  | count 
+----------------+--------+-------
+ recommendation | mock-1 |     6
+(1 row)
+
+$ recommendations (<=3 items each, one row per user and day)
+             email              | tips |    hash    
+--------------------------------+------+------------
+ demo-iryna@demo.eduforge.local |    2 | f7f796a929
+ demo-olena@demo.eduforge.local |    1 | 490e5469c9
+ demo-taras@demo.eduforge.local |    3 | 66f3aafb0e
+(3 rows)
+
