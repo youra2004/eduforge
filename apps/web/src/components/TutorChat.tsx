@@ -99,6 +99,13 @@ export function TutorChat({
             <p>{m.content}</p>
           </li>
         ))}
+        {busy && (
+          <li className="tutor typing" role="status" aria-label="Репетитор друкує">
+            <i />
+            <i />
+            <i />
+          </li>
+        )}
       </ol>
       <form onSubmit={submit} className="tutor-form">
         <label>

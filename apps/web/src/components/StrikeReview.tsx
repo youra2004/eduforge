@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { sendJson } from '@/lib/client';
+import { toast } from './Toaster';
 
 type Outcome = 'confirm' | 'dismiss' | 'overturn' | 'reject';
 
@@ -17,8 +18,10 @@ export function StrikeReview({ strikeId, status }: { strikeId: string; status: s
     setBusy(true);
     setError(null);
     const res = await sendJson(`/api/admin/strikes/${strikeId}/review`, 'POST', { outcome, note });
-    if (res.ok) router.refresh();
-    else setError(res.errors.join(' '));
+    if (res.ok) {
+      toast('Рішення збережено');
+      router.refresh();
+    } else setError(res.errors.join(' '));
     setBusy(false);
   }
 
@@ -34,12 +37,12 @@ export function StrikeReview({ strikeId, status }: { strikeId: string; status: s
         ];
 
   return (
-    <div>
+    <div className="stack">
       <label>
         Примітка
         <input value={note} onChange={(e) => setNote(e.target.value)} data-testid="review-note" />
       </label>
-      <p>
+      <p className="actions" style={{ margin: 0 }}>
         {buttons.map(([outcome, label, secondary]) => (
           <button
             key={outcome}

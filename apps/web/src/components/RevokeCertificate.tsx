@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { sendJson } from '@/lib/client';
+import { toast } from './Toaster';
 
 /** Admin: revoke with a reason (F10-R4). The reason is kept for admins; the public page only says "revoked". */
 export function RevokeCertificate({ certificateId }: { certificateId: string }) {
@@ -17,8 +18,10 @@ export function RevokeCertificate({ certificateId }: { certificateId: string }) 
     const res = await sendJson(`/api/admin/certificates/${certificateId}/revoke`, 'POST', {
       reason,
     });
-    if (res.ok) router.refresh();
-    else setErrors(res.errors);
+    if (res.ok) {
+      toast('Сертифікат відкликано');
+      router.refresh();
+    } else setErrors(res.errors);
     setBusy(false);
   }
 

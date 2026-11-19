@@ -9,6 +9,8 @@ import { IssueCertificate } from './IssueCertificate';
 import { ExamProctor, type ProctorView } from './ExamProctor';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
 import { StrikeAppeal } from './StrikeAppeal';
+import { Confetti } from './Confetti';
+import { PageHeader } from './ui';
 
 export interface ExamViewData {
   id: string;
@@ -90,6 +92,8 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The time a question started with, to draw how much of it is left.
+  const budget = useRef({ id: '', ms: 1 });
   const refreshing = useRef(false);
   // The camera gate is passed in this page (a reload asks for it again).
   const [proctorActive, setProctorActive] = useState(false);
@@ -228,7 +232,7 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
     const v = exam.violation;
     return (
       <div data-testid="exam-stopped">
-        <h1>Іспит зупинено</h1>
+        <PageHeader title="Іспит зупинено" />
         <p className="error" data-testid="exam-stopped-reason">
           {v
             ? (violationText[v.reason] ?? 'Зафіксовано порушення правил іспиту.')
@@ -249,7 +253,9 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
           <p data-testid="exam-appealed">Апеляцію подано, її розгляне адміністратор.</p>
         )}
         <p>
-          <Link href={`/courses/${exam.versionId}`}>До графа курсу</Link>
+          <Link href={`/courses/${exam.versionId}`} className="btn secondary">
+            До графа курсу
+          </Link>
         </p>
       </div>
     );
@@ -259,12 +265,24 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
     const r = exam.result;
     return (
       <div data-testid="exam-result">
-        <h1 data-testid="exam-verdict">{r.passed ? 'Іспит складено' : 'Іспит не складено'}</h1>
-        <p className="muted">
-          Раунд {exam.roundNo}, спроба {exam.attemptNo} з {exam.attemptsPerRound} · набрано{' '}
-          <strong data-testid="exam-score">{Math.round(r.scorePct ?? 0)} %</strong> з потрібних{' '}
-          {Math.round(r.passPct)} %
-        </p>
+        <div className={`result-hero ${r.passed ? 'ok' : 'bad'}`}>
+          {r.passed && <Confetti />}
+          <span
+            className="result-score count-up"
+            style={{ '--n': Math.round(r.scorePct ?? 0) } as React.CSSProperties}
+            data-suffix=" %"
+            role="img"
+            aria-label={`${Math.round(r.scorePct ?? 0)} %`}
+          />
+          <div>
+            <h1 data-testid="exam-verdict">{r.passed ? 'Іспит складено' : 'Іспит не складено'}</h1>
+            <p className="muted">
+              Раунд {exam.roundNo}, спроба {exam.attemptNo} з {exam.attemptsPerRound} · набрано{' '}
+              <strong data-testid="exam-score">{Math.round(r.scorePct ?? 0)} %</strong> з потрібних{' '}
+              {Math.round(r.passPct)} %
+            </p>
+          </div>
+        </div>
         {r.reason === 'interruptions_exceeded' && (
           <p className="error" data-testid="exam-reason">
             Перевищено ліміт технічних перерв ({exam.maxInterruptions}): спробу зараховано як
@@ -296,7 +314,11 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
             <h2>Сертифікат</h2>
             {exam.certificate ? (
               <p>
-                <Link href={`/verify/${exam.certificate.id}`} data-testid="certificate-link">
+                <Link
+                  href={`/verify/${exam.certificate.id}`}
+                  className="btn"
+                  data-testid="certificate-link"
+                >
                   Відкрити сертифікат
                 </Link>
                 {exam.certificate.revoked && <span className="error"> · відкликано</span>}
@@ -317,10 +339,14 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
             {new Date(r.cooldownUntil).toLocaleString('uk-UA')}.
           </p>
         )}
-        <p>
-          <Link href={`/courses/${exam.versionId}`}>До графа курсу</Link> ·{' '}
-          <Link href={`/courses/${exam.versionId}/exam`}>До сторінки іспиту</Link>
-        </p>
+        <div className="actions" style={{ marginTop: 24 }}>
+          <Link href={`/courses/${exam.versionId}`} className="btn secondary">
+            До графа курсу
+          </Link>
+          <Link href={`/courses/${exam.versionId}/exam`} className="btn secondary">
+            До сторінки іспиту
+          </Link>
+        </div>
       </div>
     );
   }
@@ -344,7 +370,7 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
   if (!exam.current || gated) {
     return (
       <div data-testid="exam-runner">
-        <h1>Фінальний іспит</h1>
+        <PageHeader title="Фінальний іспит" />
         {/* Same place in the tree as in the question view below, so the camera stream survives the gate. */}
         {proctorNode}
         <p className="exam-timers" aria-live="off">
@@ -356,14 +382,25 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
     );
   }
   const questionLeft = Date.parse(exam.current.deadlineAt) - now;
+  if (budget.current.id !== exam.current.itemId) {
+    budget.current = { id: exam.current.itemId, ms: Math.max(questionLeft, 1) };
+  }
+  const timeLeftPct = Math.max(0, Math.min(100, (questionLeft / budget.current.ms) * 100));
   return (
     <div data-testid="exam-runner">
-      <h1>Фінальний іспит</h1>
+      <PageHeader
+        title="Фінальний іспит"
+        lead={
+          <span data-testid="exam-progress">
+            Питання {exam.current.position} з {exam.total} · раунд {exam.roundNo}, спроба{' '}
+            {exam.attemptNo}
+          </span>
+        }
+      />
       {proctorNode}
-      <p className="muted" data-testid="exam-progress">
-        Питання {exam.current.position} з {exam.total} · раунд {exam.roundNo}, спроба{' '}
-        {exam.attemptNo}
-      </p>
+      <span className="question-progress" aria-hidden>
+        <span style={{ width: `${((exam.current.position - 1) / exam.total) * 100}%` }} />
+      </span>
       <p className="exam-timers" aria-live="off">
         <span>
           Усього залишилось: <strong data-testid="exam-total-timer">{clock(totalLeft)}</strong>
@@ -378,20 +415,28 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
           </strong>
         </span>
       </p>
+      <span className="time-bar" aria-hidden>
+        <span
+          className={questionLeft < 15000 ? 'urgent' : undefined}
+          style={{ width: `${timeLeftPct}%` }}
+        />
+      </span>
       {offline && (
         <p className="error" role="alert" data-testid="exam-offline">
           Зʼєднання втрачено. Коли воно відновиться, іспит буде перервано без штрафу.
         </p>
       )}
-      <QuestionForm
-        key={exam.current.itemId}
-        question={exam.current.question}
-        busy={busy}
-        submitLabel="Відповісти й далі"
-        onSubmit={answer}
-        initial={exam.current.draft}
-        onChange={autosave}
-      />
+      <div className="card question-card">
+        <QuestionForm
+          key={exam.current.itemId}
+          question={exam.current.question}
+          busy={busy}
+          submitLabel="Відповісти й далі"
+          onSubmit={answer}
+          initial={exam.current.draft}
+          onChange={autosave}
+        />
+      </div>
       {error && (
         <p role="alert" className="error" data-testid="exam-error">
           {error}

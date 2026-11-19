@@ -44,7 +44,12 @@ export function ExperimentJoin({ consentVersion }: { consentVersion: string }) {
           <span className="hint">(версія {consentVersion})</span>
         </span>
       </label>
-      <button type="submit" disabled={!agreed || busy} data-testid="join-experiment">
+      <button
+        type="submit"
+        disabled={!agreed || busy}
+        aria-busy={busy}
+        data-testid="join-experiment"
+      >
         Взяти участь
       </button>
       {error && (

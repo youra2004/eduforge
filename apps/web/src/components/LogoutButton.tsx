@@ -10,7 +10,7 @@ export function LogoutButton() {
     router.refresh();
   }
   return (
-    <button type="button" className="link" onClick={logout}>
+    <button type="button" className="secondary sm" onClick={logout}>
       Вийти
     </button>
   );

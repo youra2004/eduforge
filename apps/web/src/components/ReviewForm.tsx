@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { sendJson } from '@/lib/client';
 import { checklistLabels } from '@/lib/messages';
+import { toast } from './Toaster';
 
 /** The expert's checklist and decision (D-10). Approval needs every item ticked; a rejection needs a comment for the author. */
 export function ReviewForm({ reviewId }: { reviewId: string }) {
@@ -24,6 +25,7 @@ export function ReviewForm({ reviewId }: { reviewId: string }) {
     });
     setBusy(false);
     if (!res.ok) return setErrors(res.errors);
+    toast('Рішення збережено');
     router.refresh();
   }
 

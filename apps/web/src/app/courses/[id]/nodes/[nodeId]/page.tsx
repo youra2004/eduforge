@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   AuthError,
@@ -18,6 +17,8 @@ import { ContentEditor } from '@/components/ContentEditor';
 import { Markdown } from '@/components/Markdown';
 import { QuestionBank, type BankQuestion } from '@/components/QuestionBank';
 import { VideoPlayer } from '@/components/VideoPlayer';
+import { EmptyState, PageHeader } from '@/components/ui';
+import { nodeStateLabels } from '@/lib/messages';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 
@@ -54,18 +55,18 @@ export default async function NodePage({
   });
   if (typeof opened === 'string') {
     return (
-      <div className="card" data-testid="node-closed">
-        <p>
-          <Link href={`/courses/${id}`}>← {graph.version.title}</Link>
-        </p>
-        <h1>{node.title}</h1>
-        <p className="error">
+      <div className="page focus" data-testid="node-closed">
+        <PageHeader
+          back={{ href: `/courses/${id}`, label: graph.version.title }}
+          title={node.title}
+        />
+        <EmptyState icon="lock" title="Вузол ще закритий">
           {opened === 'node_locked'
-            ? 'Цей вузол ще закритий: спочатку пройдіть усі вузли, від яких він залежить.'
+            ? 'Спочатку пройдіть усі вузли, від яких він залежить.'
             : opened === 'experiment_step_not_allowed'
               ? 'Матеріали модуля відкриті лише під час навчання: після його завершення вони закриваються до кінця дослідження.'
               : 'Щоб відкрити вузол, запишіться на курс.'}
-        </p>
+        </EmptyState>
       </div>
     );
   }
@@ -83,18 +84,31 @@ export default async function NodePage({
   );
 
   return (
-    <div className="card wide">
-      <p>
-        <Link href={`/courses/${id}`}>← {graph.version.title}</Link>
-      </p>
-      <h1>{node.title}</h1>
-      {node.summary && <p className="muted">{node.summary}</p>}
+    <div className="page">
+      <PageHeader
+        back={{ href: `/courses/${id}`, label: graph.version.title }}
+        title={node.title}
+        lead={node.summary || undefined}
+        actions={
+          mine ? (
+            <span
+              className={`badge ${mine.state === 'passed' ? 'ok' : mine.state === 'cooldown' ? 'warn' : 'accent'}`}
+            >
+              {nodeStateLabels[mine.state]}
+            </span>
+          ) : undefined
+        }
+      />
       {canEdit && problems.length > 0 && (
         <p className="error" data-testid="content-issues">
           Є відео без транскрипту ({problems.length}): такий курс не можна опублікувати.
         </p>
       )}
-      {items.length === 0 && <p className="muted">У цьому вузлі ще немає матеріалів.</p>}
+      {items.length === 0 && (
+        <EmptyState icon="file" title="Тут ще порожньо">
+          У цьому вузлі ще немає матеріалів.
+        </EmptyState>
+      )}
       {items.map((item) => (
         <article key={item.id} className="content-item" data-testid="content-item">
           <h2>{item.title}</h2>

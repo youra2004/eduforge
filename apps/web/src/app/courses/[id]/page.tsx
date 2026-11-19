@@ -21,6 +21,7 @@ import { EnrollButton } from '@/components/EnrollButton';
 import { GraphEditor } from '@/components/GraphEditor';
 import { VersionDetailsForm } from '@/components/VersionDetailsForm';
 import { levelLabels, nodeStateLabels, ratingBand, versionStatusLabels } from '@/lib/messages';
+import { PageHeader, VersionPipeline } from '@/components/ui';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 import type { Node } from '@xyflow/react';
@@ -28,7 +29,7 @@ import type { Node } from '@xyflow/react';
 export const dynamic = 'force-dynamic';
 
 const NODE_GAP_X = 260;
-const LAYER_GAP_Y = 150;
+const LAYER_GAP_Y = 128;
 
 export default async function CourseVersionPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await requirePageRole('student', 'author', 'expert', 'admin');
@@ -96,25 +97,68 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
     };
   });
 
+  const passedCount = progress?.filter((p) => p.state === 'passed').length ?? 0;
+  const allPassed = !!progress && progress.every((p) => p.state === 'passed');
   return (
-    <div className="card wide">
-      <p>
-        <Link href="/courses">← Усі курси</Link>
-      </p>
-      <h1>
-        {graph.version.title} <span className="muted">v{graph.version.versionNo}</span>
-      </h1>
-      <p className="muted">
-        {versionStatusLabels[graph.version.status]} · {graph.nodes.length} вузлів ·{' '}
-        {graph.skills.length} навичок
-      </p>
-      {graph.version.rating !== null && (
-        <p className="rating-line" data-testid="course-rating">
-          <span className="rating-badge">{graph.version.rating}/10</span>{' '}
-          {levelLabels[ratingBand(graph.version.rating)]}
-        </p>
-      )}
-      {graph.version.description && <p>{graph.version.description}</p>}
+    <div className="page">
+      <PageHeader
+        back={{ href: '/courses', label: 'Усі курси' }}
+        title={
+          <>
+            {graph.version.title} <span className="muted">v{graph.version.versionNo}</span>
+          </>
+        }
+        lead={graph.version.description || undefined}
+        actions={
+          graph.version.status === 'published' &&
+          !progress &&
+          (!study || studyStep === 'learning') ? (
+            <EnrollButton versionId={id} />
+          ) : progress && !study ? (
+            <Link
+              href={`/courses/${id}/exam`}
+              className={allPassed ? 'btn' : 'btn secondary'}
+              data-testid="exam-link"
+            >
+              Фінальний іспит
+            </Link>
+          ) : undefined
+        }
+      />
+      {owner && <VersionPipeline status={graph.version.status} />}
+      <dl className="stats">
+        <div className="stat">
+          <dt>Стан</dt>
+          <dd>{versionStatusLabels[graph.version.status]}</dd>
+        </div>
+        <div className="stat">
+          <dt>Вузлів</dt>
+          <dd>{graph.nodes.length}</dd>
+        </div>
+        <div className="stat">
+          <dt>Навичок</dt>
+          <dd>{graph.skills.length}</dd>
+        </div>
+        {graph.version.rating !== null && (
+          <div className="stat" data-testid="course-rating">
+            <dt>Складність</dt>
+            <dd>
+              <span className="rating-badge">{graph.version.rating}/10</span>{' '}
+              <span className="hint">
+                {levelLabels[ratingBand(graph.version.rating)]?.split(' ')[0]}
+              </span>
+            </dd>
+          </div>
+        )}
+        {progress && (
+          <div className="stat">
+            <dt>Ваш прогрес</dt>
+            <dd>
+              {passedCount} з {progress.length}
+            </dd>
+          </div>
+        )}
+      </dl>
       {graph.issues.length > 0 && (
         <ul className="error" data-testid="graph-issues">
           {graph.issues.map((i, k) => (
@@ -135,41 +179,32 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
         </details>
       )}
       {graph.version.status === 'published' && !progress && study && studyStep !== 'learning' && (
-        <p data-testid="study-module-note">
+        <p className="demo-banner" data-testid="study-module-note">
           Це модуль дослідження. Почніть з вхідного тесту на сторінці{' '}
           <Link href="/experiment">Дослідження</Link>.
         </p>
       )}
-      {graph.version.status === 'published' &&
-        !progress &&
-        (!study || studyStep === 'learning') && <EnrollButton versionId={id} />}
       {progress && study?.condition === 'control' && (
-        <p className="hint" data-testid="free-navigation-note">
+        <p className="demo-banner" data-testid="free-navigation-note">
           Вільний режим: усі вузли відкриті, порядок обираєте самі. Тестів вузлів і репетитора тут
           немає. Коли закінчите, завершіть навчання на сторінці{' '}
           <Link href="/experiment">Дослідження</Link>.
         </p>
       )}
       {progress && !study && (
-        <p>
-          <Link href={`/courses/${id}/exam`} data-testid="exam-link">
-            Фінальний іспит
-          </Link>{' '}
-          <span className="muted">
-            {progress.every((p) => p.state === 'passed')
-              ? '— усі вузли пройдено, іспит доступний'
-              : '— відкриється, коли буде пройдено всі вузли'}
-          </span>
+        <p className="hint" style={{ marginTop: -12 }}>
+          {allPassed
+            ? 'Усі вузли пройдено, іспит доступний.'
+            : 'Іспит відкриється, коли буде пройдено всі вузли.'}
         </p>
       )}
       {progress && (
-        <p className="hint graph-legend" data-testid="graph-legend">
+        <p className="graph-legend" data-testid="graph-legend">
           {(['available', 'in_progress', 'passed', 'cooldown', 'locked'] as const).map((s) => (
             <span key={s} className={`legend-chip ${s}`}>
               {nodeStateLabels[s]}
             </span>
           ))}
-          · пройдено {progress.filter((p) => p.state === 'passed').length} з {progress.length}
         </p>
       )}
       {editable ? (
@@ -190,6 +225,11 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
           }))}
         />
       )}
+      {!progress && (
+        <p className="hint" style={{ marginTop: 12 }}>
+          Стани вузлів умовні: прогрес зʼявиться після запису на опублікований курс.
+        </p>
+      )}
       {editable && (
         <VersionDetailsForm
           versionId={id}
@@ -199,11 +239,6 @@ export default async function CourseVersionPage({ params }: { params: Promise<{ 
         />
       )}
       {audit && <AuditSection view={audit} />}
-      {!progress && (
-        <p className="hint">
-          Стани вузлів умовні: прогрес зʼявиться після запису на опублікований курс.
-        </p>
-      )}
     </div>
   );
 }

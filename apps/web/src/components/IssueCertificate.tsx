@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { sendJson } from '@/lib/client';
+import { toast } from './Toaster';
 
 /** Shown on the result of a passed exam while no certificate exists yet (no key, or a proctoring flag on hold). */
 export function IssueCertificate({ examId, onDone }: { examId: string; onDone: () => void }) {
@@ -12,8 +13,10 @@ export function IssueCertificate({ examId, onDone }: { examId: string; onDone: (
     setBusy(true);
     setErrors([]);
     const res = await sendJson(`/api/exams/${examId}/certificate`, 'POST');
-    if (res.ok) onDone();
-    else setErrors(res.errors);
+    if (res.ok) {
+      toast('Сертифікат отримано');
+      onDone();
+    } else setErrors(res.errors);
     setBusy(false);
   }
 

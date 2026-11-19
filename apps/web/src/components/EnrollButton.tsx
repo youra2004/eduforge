@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { toast } from './Toaster';
 
 export function EnrollButton({ versionId }: { versionId: string }) {
   const router = useRouter();
@@ -11,8 +12,10 @@ export function EnrollButton({ versionId }: { versionId: string }) {
     setBusy(true);
     setError(null);
     const res = await fetch(`/api/courses/versions/${versionId}/enroll`, { method: 'POST' });
-    if (res.ok) router.refresh();
-    else
+    if (res.ok) {
+      toast('Ви записані на курс');
+      router.refresh();
+    } else
       setError(
         ((await res.json().catch(() => null)) as { message?: string } | null)?.message ??
           'Не вдалося записатися.',
@@ -21,7 +24,7 @@ export function EnrollButton({ versionId }: { versionId: string }) {
   }
   return (
     <div>
-      <button type="button" onClick={enroll} disabled={busy} data-testid="enroll">
+      <button type="button" onClick={enroll} disabled={busy} aria-busy={busy} data-testid="enroll">
         Записатися на курс
       </button>
       {error && (

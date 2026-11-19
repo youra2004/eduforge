@@ -1,6 +1,6 @@
 import { listStrikeQueue } from '@eduforge/core';
-import Link from 'next/link';
 import { StrikeReview } from '@/components/StrikeReview';
+import { EmptyState, PageHeader } from '@/components/ui';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 
@@ -34,22 +34,20 @@ export default async function StrikesPage() {
   const admin = await requirePageRole('admin');
   const queue = await listStrikeQueue(getDb(), admin);
   return (
-    <div className="card wide">
-      <p>
-        <Link href="/admin">← До адміністрування</Link>
-      </p>
-      <h1>Порушення на іспитах</h1>
-      <p className="hint">
-        Жорсткі події (вихід із повноекранного режиму, фокус, копіювання, devtools) карають
-        автоматично й сюди потрапляють лише як апеляції. Підозри за зображенням і ритмом друку
-        накопичуються в ризик-оцінці; покарання — лише після вашого підтвердження. Кадри
-        зберігаються зашифрованими лише для спрацьованих подій і видаляються після закриття справи
-        або через строк зберігання.
-      </p>
+    <div className="page">
+      <PageHeader
+        back={{ href: '/admin', label: 'До адміністрування' }}
+        title="Порушення на іспитах"
+        lead="Жорсткі події (вихід із повноекранного режиму, фокус, копіювання, devtools) карають автоматично й сюди потрапляють лише як апеляції. Підозри за зображенням і ритмом друку накопичуються в ризик-оцінці; покарання — лише після вашого підтвердження. Кадри зберігаються зашифрованими лише для спрацьованих подій і видаляються після закриття справи або через строк зберігання."
+      />
       {queue.length === 0 ? (
-        <p className="muted" data-testid="no-strikes">
-          Справ, що чекають на рішення, немає.
-        </p>
+        <EmptyState
+          icon="shield-check"
+          title="Справ, що чекають на рішення, немає"
+          testId="no-strikes"
+        >
+          Підозрілі події й апеляції студентів зʼявляться тут.
+        </EmptyState>
       ) : (
         <ul className="cases" data-testid="strike-queue">
           {queue.map((q) => (

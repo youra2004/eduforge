@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listMyReviews } from '@eduforge/core';
 import { levelLabels, reviewStatusLabels } from '@/lib/messages';
+import { EmptyState, PageHeader } from '@/components/ui';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
 
@@ -10,14 +11,14 @@ export default async function Page() {
   const user = await requirePageRole('expert');
   const reviews = await listMyReviews(getDb(), user);
   return (
-    <div className="card">
-      <h1>Експерт</h1>
-      <h2>Черга перевірки</h2>
+    <div className="page">
+      <PageHeader title="Експерт" lead="Курси, які адміністратор призначив вам на перевірку." />
+      <h2 style={{ marginTop: 0 }}>Черга перевірки</h2>
       {reviews.length === 0 ? (
-        <p className="muted" data-testid="no-reviews">
+        <EmptyState icon="eye" title="Перевірок поки немає" testId="no-reviews">
           Вам поки що не призначено жодної перевірки. Кандидатів на рейтинг 10 призначає
           адміністратор.
-        </p>
+        </EmptyState>
       ) : (
         <table data-testid="review-queue">
           <thead>
