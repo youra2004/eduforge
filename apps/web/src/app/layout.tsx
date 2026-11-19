@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import '@fontsource-variable/inter';
+import '@fontsource-variable/unbounded';
 import { roles } from '@eduforge/db';
 import { unreadCount } from '@eduforge/core';
 import { CommandPalette, type PaletteLink } from '@/components/CommandPalette';

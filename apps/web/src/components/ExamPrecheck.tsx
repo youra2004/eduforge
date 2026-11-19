@@ -135,6 +135,7 @@ export function ExamPrecheck({
         back={{ href: `/courses/${status.versionId}`, label: 'До курсу' }}
         title="Фінальний іспит"
         lead={status.title}
+        mood="think"
       />
 
       <h2 style={{ marginTop: 0 }}>Правила</h2>

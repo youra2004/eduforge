@@ -1,12 +1,10 @@
 import Link from 'next/link';
-import { Icon } from '@/components/icons';
+import { Mascot } from '@/components/Mascot';
 
 export default function NotFound() {
   return (
     <div className="status-page">
-      <span className="empty-icon">
-        <Icon name="file" size={20} />
-      </span>
+      <Mascot mood="think" size={120} float />
       <span className="code">404</span>
       <h1>Сторінку не знайдено</h1>
       <p>Можливо, посилання застаріло або сторінку було видалено.</p>

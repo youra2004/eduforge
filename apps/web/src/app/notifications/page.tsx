@@ -28,7 +28,7 @@ export default async function NotificationsPage() {
         actions={items.length > 0 && unread > 0 ? <MarkReadButton /> : undefined}
       />
       {items.length === 0 ? (
-        <EmptyState icon="bell" title="Сповіщень немає">
+        <EmptyState icon="bell" mood="sleep" title="Сповіщень немає">
           Тут зʼявляться результати аудитів, призначення перевірок та інші події.
         </EmptyState>
       ) : (

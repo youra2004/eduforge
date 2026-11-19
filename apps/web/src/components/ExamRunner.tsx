@@ -10,7 +10,8 @@ import { ExamProctor, type ProctorView } from './ExamProctor';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
 import { StrikeAppeal } from './StrikeAppeal';
 import { Confetti } from './Confetti';
-import { PageHeader } from './ui';
+import { Mascot } from './Mascot';
+import { PageHeader, ScoreRing } from './ui';
 
 export interface ExamViewData {
   id: string;
@@ -267,13 +268,7 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
       <div data-testid="exam-result">
         <div className={`result-hero ${r.passed ? 'ok' : 'bad'}`}>
           {r.passed && <Confetti />}
-          <span
-            className="result-score count-up"
-            style={{ '--n': Math.round(r.scorePct ?? 0) } as React.CSSProperties}
-            data-suffix=" %"
-            role="img"
-            aria-label={`${Math.round(r.scorePct ?? 0)} %`}
-          />
+          <ScoreRing pct={r.scorePct ?? 0} />
           <div>
             <h1 data-testid="exam-verdict">{r.passed ? 'Іспит складено' : 'Іспит не складено'}</h1>
             <p className="muted">
@@ -282,6 +277,7 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
               {Math.round(r.passPct)} %
             </p>
           </div>
+          <Mascot mood={r.passed ? 'cheer' : 'oops'} size={104} float className="hero-mascot-r" />
         </div>
         {r.reason === 'interruptions_exceeded' && (
           <p className="error" data-testid="exam-reason">
@@ -427,6 +423,7 @@ export function ExamRunner({ initial }: { initial: ExamViewData }) {
         </p>
       )}
       <div className="card question-card">
+        <Mascot mood="think" size={64} className="question-mascot" />
         <QuestionForm
           key={exam.current.itemId}
           question={exam.current.question}

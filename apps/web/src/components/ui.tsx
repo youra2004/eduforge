@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from './icons';
+import { Mascot, type Mood } from './Mascot';
 
 /** Three connected nodes: the knowledge graph in one glyph. */
 export function BrandMark({ className = 'brand-mark' }: { className?: string }) {
@@ -28,11 +29,14 @@ export function PageHeader({
   lead,
   back,
   actions,
+  mood,
 }: {
   title: ReactNode;
   lead?: ReactNode;
   back?: { href: string; label: string };
   actions?: ReactNode;
+  /** Puts the mascot next to the title, for the screens that welcome a student. */
+  mood?: Mood;
 }) {
   return (
     <>
@@ -42,7 +46,8 @@ export function PageHeader({
           {back.label}
         </Link>
       )}
-      <header className="page-head">
+      <header className={mood ? 'page-head welcome' : 'page-head'}>
+        {mood && <Mascot mood={mood} size={88} float follow />}
         <div>
           <h1>{title}</h1>
           {lead && <div className="lead">{lead}</div>}
@@ -56,12 +61,14 @@ export function PageHeader({
 /** An empty list says what is missing and, where there is one, what to do about it. */
 export function EmptyState({
   icon = 'inbox',
+  mood = 'think',
   title,
   children,
   action,
   testId,
 }: {
   icon?: IconName;
+  mood?: Mood;
   title: string;
   children?: ReactNode;
   action?: ReactNode;
@@ -69,8 +76,11 @@ export function EmptyState({
 }) {
   return (
     <div className="empty" data-testid={testId}>
-      <span className="empty-icon">
-        <Icon name={icon} size={20} />
+      <span className="empty-art">
+        <Mascot mood={mood} size={84} float />
+        <span className="empty-icon">
+          <Icon name={icon} size={16} />
+        </span>
       </span>
       <h3>{title}</h3>
       {children && <p>{children}</p>}
@@ -137,5 +147,78 @@ export function VersionPipeline({ status }: { status: string }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/** Where a student stands, from the number of nodes passed. A label only: it changes nothing in the learning engine. */
+const ranks = [
+  { from: 0, title: 'Новачок' },
+  { from: 1, title: 'Дослідник' },
+  { from: 3, title: 'Знавець' },
+  { from: 6, title: 'Майстер графа' },
+] as const;
+
+export function rankOf(nodesPassed: number) {
+  const i = Math.max(
+    0,
+    ranks.findLastIndex((r) => nodesPassed >= r.from),
+  );
+  const next = ranks[i + 1];
+  return { title: ranks[i]!.title, left: next ? next.from - nodesPassed : 0, next: next?.title };
+}
+
+/** Milestones the student has reached, derived from progress; the ones still ahead stay locked. */
+export function Achievements({
+  items,
+}: {
+  items: { icon: IconName; title: string; hint: string; done: boolean; tone: string }[];
+}) {
+  return (
+    <ul className="achievements" data-testid="achievements">
+      {items.map((a) => (
+        <li key={a.title} className={a.done ? 'done' : 'locked'} data-tone={a.tone}>
+          <span className="ach-icon">
+            <Icon name={a.done ? a.icon : 'lock'} size={20} />
+          </span>
+          <strong>{a.title}</strong>
+          <span className="hint">{a.hint}</span>
+          <span className="sr-only">{a.done ? 'Отримано' : 'Ще попереду'}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The colourful side of the sign-in and sign-up screens: the mascot and what waits behind the door. */
+export function AuthArt({ mood, title, points }: { mood: Mood; title: string; points: string[] }) {
+  return (
+    <aside className="auth-art" aria-hidden>
+      <Mascot mood={mood} size={148} float follow />
+      <h2>{title}</h2>
+      <ul>
+        {points.map((p) => (
+          <li key={p}>
+            <Icon name="check" size={14} />
+            {p}
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
+/** The score of a finished test as a ring that fills up, next to the mascot's reaction. */
+export function ScoreRing({ pct }: { pct: number }) {
+  const n = Math.round(pct);
+  return (
+    <div className="score-ring" style={{ '--pct': n } as React.CSSProperties}>
+      <span
+        className="result-score count-up"
+        style={{ '--n': n } as React.CSSProperties}
+        data-suffix=" %"
+        role="img"
+        aria-label={`${n} %`}
+      />
+    </div>
   );
 }

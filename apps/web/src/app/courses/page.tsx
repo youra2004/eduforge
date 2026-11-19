@@ -15,7 +15,11 @@ export default async function CoursesPage() {
   const versions = await listCourseVersions(getDb(), user);
   return (
     <div className="page">
-      <PageHeader title="Курси" lead="Оберіть курс, перегляньте його граф знань і запишіться." />
+      <PageHeader
+        mood="happy"
+        title="Курси"
+        lead="Оберіть курс, перегляньте його граф знань і запишіться."
+      />
       {versions.length === 0 ? (
         <EmptyState icon="book" title="Поки що немає доступних курсів">
           Опубліковані курси зʼявляться тут.

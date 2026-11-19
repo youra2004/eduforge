@@ -19,7 +19,12 @@ export default async function CertificatesPage() {
         lead="Відкликаний сертифікат на публічній сторінці показується як недійсний; причину бачите лише ви. Сертифікат також відкликається автоматично, коли підтверджене порушення скасовує складений іспит."
       />
       {list.length === 0 ? (
-        <EmptyState icon="award" title="Сертифікатів ще немає" testId="no-certificates">
+        <EmptyState
+          icon="award"
+          mood="sleep"
+          title="Сертифікатів ще немає"
+          testId="no-certificates"
+        >
           Сертифікат зʼявиться тут, коли студент складе фінальний іспит.
         </EmptyState>
       ) : (

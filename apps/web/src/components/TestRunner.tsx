@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
 import { TutorChat } from './TutorChat';
 import { Confetti } from './Confetti';
-import { PageHeader } from './ui';
+import { Mascot } from './Mascot';
+import { PageHeader, ScoreRing } from './ui';
 
 export interface AssessmentView {
   id: string;
@@ -86,13 +87,7 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
       <div data-testid="test-result">
         <div className={`result-hero ${r.passed ? 'ok' : 'bad'}`}>
           {r.passed && <Confetti />}
-          <span
-            className="result-score count-up"
-            style={{ '--n': Math.round(r.scorePct ?? 0) } as React.CSSProperties}
-            data-suffix=" %"
-            role="img"
-            aria-label={`${Math.round(r.scorePct ?? 0)} %`}
-          />
+          <ScoreRing pct={r.scorePct ?? 0} />
           <div>
             <h1 data-testid="result-verdict">
               {r.passed ? 'Вузол пройдено' : 'Поки що не пройдено'}
@@ -102,6 +97,7 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
               {Math.round(r.scorePct ?? 0)} %
             </p>
           </div>
+          <Mascot mood={r.passed ? 'cheer' : 'oops'} size={104} float className="hero-mascot-r" />
         </div>
         <h2>Рівень навичок</h2>
         <p className="hint">Для проходження кожна навичка має досягти {pct(r.threshold)}.</p>
@@ -200,6 +196,7 @@ export function TestRunner({ initial, serverNow }: { initial: AssessmentView; se
         <span style={{ width: `${(answered / a.items.length) * 100}%` }} />
       </span>
       <div className="card question-card">
+        <Mascot mood="think" size={64} className="question-mascot" />
         <QuestionForm
           key={current.id}
           question={current.question}

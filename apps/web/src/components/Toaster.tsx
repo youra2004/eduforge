@@ -56,7 +56,7 @@ export function Toaster() {
           className={`toast ${t.kind === 'error' ? 'error' : ''} ${t.leaving ? 'leaving' : ''}`}
         >
           <span className="ico">
-            <Icon name={t.kind === 'error' ? 'alert' : 'check'} size={16} />
+            <Icon name={t.kind === 'error' ? 'alert' : 'check'} size={14} />
           </span>
           <span>{t.message}</span>
         </div>

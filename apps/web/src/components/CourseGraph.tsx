@@ -17,7 +17,16 @@ import {
   type Node,
   type NodeProps,
 } from '@xyflow/react';
+import { Icon, type IconName } from './icons';
 import { nodeStateLabels as stateLabels } from '@/lib/messages';
+
+const stateGlyph: Record<GraphNodeData['state'], IconName> = {
+  passed: 'check',
+  available: 'arrow-right',
+  in_progress: 'arrow-right',
+  cooldown: 'clock',
+  locked: 'lock',
+};
 
 export interface GraphNodeData extends Record<string, unknown> {
   title: string;
@@ -41,6 +50,11 @@ function CourseNode({ data }: NodeProps<Node<GraphNodeData>>) {
       data-testid="graph-node"
     >
       <Handle type="target" position={Position.Top} isConnectable={!!data.editing} />
+      {!data.editing && (
+        <span className="graph-node-glyph" aria-hidden>
+          <Icon name={stateGlyph[data.state]} size={13} />
+        </span>
+      )}
       <a href={data.href}>{data.title}</a>
       <span className="graph-node-skills">{data.skillNames.join(' · ')}</span>
       {!data.editing && (
