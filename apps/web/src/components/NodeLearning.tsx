@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { QuestionForm, type StudentQuestion } from './QuestionForm';
+import { Mascot } from './Mascot';
 import { TutorChat } from './TutorChat';
 
 export interface NodeLearningProps {
@@ -112,17 +113,25 @@ export function NodeLearning(p: NodeLearningProps) {
             {p.attemptsInRound > 0 && ' Перед наступною спробою перегляньте матеріал вище.'} Вузол
             вважається пройденим, коли кожна навичка вузла досягне 80 %.
           </p>
-          <button
-            type="button"
-            onClick={startTest}
-            disabled={busy}
-            aria-busy={busy}
-            data-testid="start-test"
-          >
-            {p.state === 'in_progress' && p.attemptsInRound === 0
-              ? 'Продовжити тест'
-              : 'Пройти тест вузла'}
-          </button>
+          <div className="quest-cta">
+            <button
+              type="button"
+              className="lg"
+              onClick={startTest}
+              disabled={busy}
+              aria-busy={busy}
+              data-testid="start-test"
+            >
+              {p.state === 'in_progress' && p.attemptsInRound === 0
+                ? 'Продовжити тест'
+                : 'Пройти тест вузла'}
+            </button>
+            <span className="pips" aria-hidden title="Спроби раунду">
+              {Array.from({ length: p.attemptsPerRound }, (_, i) => (
+                <i key={i} className={i < p.attemptsInRound ? 'used' : ''} />
+              ))}
+            </span>
+          </div>
         </>
       )}
 
@@ -141,6 +150,7 @@ export function NodeLearning(p: NodeLearningProps) {
           />
           {verdict !== null && (
             <p data-testid="practice-verdict" className={verdict ? 'callout ok' : 'error shake'}>
+              <Mascot mood={verdict ? 'cheer' : 'oops'} size={44} />
               {verdict
                 ? 'Вірно!'
                 : 'Поки що невірно. Перегляньте матеріал і спробуйте інше питання.'}{' '}

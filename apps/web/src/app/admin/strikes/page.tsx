@@ -43,6 +43,7 @@ export default async function StrikesPage() {
       {queue.length === 0 ? (
         <EmptyState
           icon="shield-check"
+          mood="cheer"
           title="Справ, що чекають на рішення, немає"
           testId="no-strikes"
         >

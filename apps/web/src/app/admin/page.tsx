@@ -7,7 +7,7 @@ import {
   listUsers,
 } from '@eduforge/core';
 import Link from 'next/link';
-import { Icon } from '@/components/icons';
+import { Icon, type IconName } from '@/components/icons';
 import { EmptyState, PageHeader } from '@/components/ui';
 import { ReviewAssign } from '@/components/ReviewAssign';
 import { RoleEditor } from '@/components/RoleEditor';
@@ -25,25 +25,45 @@ export default async function AdminPage() {
   const experts = await listExperts(getDb(), admin);
   const strikes = await listStrikeQueue(getDb(), admin);
   const certificates = await listCertificates(getDb(), admin);
-  const tiles = [
-    { n: users.length, what: 'користувачів', href: '#users-table', attention: false },
+  const tiles: {
+    n: number;
+    what: string;
+    href: string;
+    attention: boolean;
+    tone: string;
+    icon: IconName;
+  }[] = [
+    {
+      n: users.length,
+      what: 'користувачів',
+      href: '#users-table',
+      attention: false,
+      tone: 'violet',
+      icon: 'users',
+    },
     {
       n: queue.length,
       what: 'курсів чекають на експерта',
       href: '#review-queue',
       attention: queue.some((q) => !q.review),
+      tone: 'sky',
+      icon: 'eye',
     },
     {
       n: strikes.length,
       what: 'справ про порушення',
       href: '/admin/strikes',
       attention: strikes.length > 0,
+      tone: 'pink',
+      icon: 'shield-check',
     },
     {
       n: certificates.filter((c) => !c.revokedAt).length,
       what: 'дійсних сертифікатів',
       href: '/admin/certificates',
       attention: false,
+      tone: 'sun',
+      icon: 'award',
     },
   ];
   return (
@@ -58,7 +78,11 @@ export default async function AdminPage() {
             key={t.what}
             href={t.href}
             className={`card link tile${t.attention ? ' attention' : ''}`}
+            data-tone={t.tone}
           >
+            <span className="tile-icon" aria-hidden>
+              <Icon name={t.icon} size={18} />
+            </span>
             <span
               className="num count-up"
               style={{ '--n': t.n } as React.CSSProperties}
@@ -102,7 +126,12 @@ export default async function AdminPage() {
         кожного.
       </p>
       {queue.length === 0 ? (
-        <EmptyState icon="eye" title="Курсів на експертній перевірці немає" testId="no-queue">
+        <EmptyState
+          icon="eye"
+          mood="sleep"
+          title="Курсів на експертній перевірці немає"
+          testId="no-queue"
+        >
           Курс зʼявиться тут, коли аудит присудить йому рейтинг 10.
         </EmptyState>
       ) : (
@@ -142,7 +171,12 @@ export default async function AdminPage() {
 
       <h2>Службові розділи</h2>
       <div className="grid">
-        <Link href="/admin/strikes" className="card link shortcut" data-testid="strikes-link">
+        <Link
+          href="/admin/strikes"
+          className="card link shortcut"
+          data-tone="pink"
+          data-testid="strikes-link"
+        >
           <span className="go" aria-hidden>
             <Icon name="arrow-right" size={16} />
           </span>
@@ -155,6 +189,7 @@ export default async function AdminPage() {
         <Link
           href="/admin/certificates"
           className="card link shortcut"
+          data-tone="sun"
           data-testid="certificates-link"
         >
           <span className="go" aria-hidden>
@@ -166,7 +201,12 @@ export default async function AdminPage() {
           <strong>Сертифікати</strong>
           <span>Переглянути видані сертифікати й відкликати їх</span>
         </Link>
-        <Link href="/admin/demo" className="card link shortcut" data-testid="demo-link">
+        <Link
+          href="/admin/demo"
+          className="card link shortcut"
+          data-tone="mint"
+          data-testid="demo-link"
+        >
           <span className="go" aria-hidden>
             <Icon name="arrow-right" size={16} />
           </span>

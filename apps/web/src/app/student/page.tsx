@@ -10,7 +10,8 @@ import {
   listOwnCertificates,
 } from '@eduforge/core';
 import { Icon } from '@/components/icons';
-import { EmptyState, PageHeader, Progress } from '@/components/ui';
+import { Mascot } from '@/components/Mascot';
+import { Achievements, EmptyState, PageHeader, Progress, rankOf } from '@/components/ui';
 import { recommendationKindLabels } from '@/lib/messages';
 import { requirePageRole } from '@/lib/pages';
 import { getDb } from '@/lib/server';
@@ -48,9 +49,30 @@ export default async function Page() {
     }
   }
   const nodesPassed = mine.reduce((sum, c) => sum + c.nodesPassed, 0);
+  const rank = rankOf(nodesPassed);
+  const halfway = mine.some((c) => c.nodesTotal > 0 && c.nodesPassed * 2 >= c.nodesTotal);
   return (
     <div className="page">
-      <PageHeader title="Студент" lead="Ваші курси, поради щодо навчання та сертифікати." />
+      <PageHeader
+        title="Студент"
+        mood={nodesPassed > 0 ? 'cheer' : 'happy'}
+        lead={
+          <>
+            Ваші курси, поради щодо навчання та сертифікати.
+            {mine.length > 0 && (
+              <span className="rank" data-testid="rank">
+                <Icon name="award" size={14} />
+                {rank.title}
+                {rank.next && (
+                  <span className="rank-next">
+                    ще {rank.left} до «{rank.next}»
+                  </span>
+                )}
+              </span>
+            )}
+          </>
+        }
+      />
       {demo && (
         <p className="demo-banner" data-testid="demo-banner">
           Демонстраційні дані: цей обліковий запис і його історія створені для показу, а не реальним
@@ -67,11 +89,14 @@ export default async function Page() {
       {mine.length > 0 && (
         <div className="tiles" data-testid="student-overview">
           {[
-            { n: mine.length, what: 'курсів' },
-            { n: nodesPassed, what: 'вузлів пройдено' },
-            { n: certs.length, what: 'сертифікатів' },
+            { n: mine.length, what: 'курсів', tone: 'violet', icon: 'book' },
+            { n: nodesPassed, what: 'вузлів пройдено', tone: 'mint', icon: 'network' },
+            { n: certs.length, what: 'сертифікатів', tone: 'sun', icon: 'award' },
           ].map((t) => (
-            <div key={t.what} className="card tile">
+            <div key={t.what} className="card tile" data-tone={t.tone}>
+              <span className="tile-icon" aria-hidden>
+                <Icon name={t.icon as 'book'} size={18} />
+              </span>
               <span
                 className="num count-up"
                 style={{ '--n': t.n } as React.CSSProperties}
@@ -86,6 +111,7 @@ export default async function Page() {
 
       {next && unfinished && (
         <div className="card continue" data-testid="continue-card">
+          <Mascot mood="wow" size={92} float follow />
           <div>
             <span className="meta">Продовжити навчання · {next.title}</span>
             <h2>{next.nodeTitle}</h2>
@@ -102,6 +128,41 @@ export default async function Page() {
         </div>
       )}
 
+      {mine.length > 0 && (
+        <Achievements
+          items={[
+            {
+              icon: 'check',
+              title: 'Перший вузол',
+              hint: 'Пройдіть один вузол',
+              done: nodesPassed >= 1,
+              tone: 'mint',
+            },
+            {
+              icon: 'network',
+              title: 'Половина шляху',
+              hint: 'Пройдіть пів курсу',
+              done: halfway,
+              tone: 'sky',
+            },
+            {
+              icon: 'book',
+              title: 'Курс пройдено',
+              hint: 'Усі вузли курсу',
+              done: mine.some((c) => c.status === 'completed'),
+              tone: 'pink',
+            },
+            {
+              icon: 'award',
+              title: 'Сертифікат',
+              hint: 'Складіть іспит',
+              done: certs.length > 0,
+              tone: 'sun',
+            },
+          ]}
+        />
+      )}
+
       <section className="section" style={{ marginTop: 0 }}>
         <div className="section-head">
           <h2>Мої курси</h2>
@@ -109,6 +170,7 @@ export default async function Page() {
         {mine.length === 0 ? (
           <EmptyState
             icon="book"
+            mood="happy"
             title="Ви ще не записані на жоден курс"
             testId="no-enrollments"
             action={

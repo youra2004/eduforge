@@ -1,25 +1,39 @@
 import Link from 'next/link';
 import { Icon, type IconName } from '@/components/icons';
 import { HeroGraph } from '@/components/HeroGraph';
+import { Mascot } from '@/components/Mascot';
 import { getCurrentUser } from '@/lib/server';
 
-const pillars: { icon: IconName; title: string; text: string }[] = [
+const pillars: { icon: IconName; tone: string; title: string; text: string }[] = [
   {
     icon: 'network',
+    tone: 'sun',
     title: 'Граф замість списку уроків',
     text: 'Наступний вузол відкривається, коли ви підтвердили розуміння попередніх. Видно, що пройдено, що відкрито, а що ще чекає.',
   },
   {
     icon: 'message',
+    tone: 'pink',
     title: 'Репетитор, який підказує',
     text: 'Допомагає навідними питаннями й схожими прикладами на основі пройденого матеріалу, але не видає готових відповідей.',
   },
   {
     icon: 'shield-check',
+    tone: 'sky',
     title: 'Іспит і сертифікат, що перевіряється',
     text: 'Підсумковий іспит проходить під наглядом, а сертифікат має цифровий підпис: його може перевірити будь-хто за посиланням.',
   },
 ];
+
+const tones = ['violet', 'sun', 'pink', 'mint', 'sky', 'violet'] as const;
+
+const steps = [
+  { icon: 'book', title: 'Запишіться на курс' },
+  { icon: 'network', title: 'Проходьте вузли графа' },
+  { icon: 'check', title: 'Підтверджуйте тестами' },
+  { icon: 'shield-check', title: 'Складіть іспит' },
+  { icon: 'award', title: 'Отримайте сертифікат' },
+] as const;
 
 const shortcuts = [
   { href: '/courses', icon: 'book', title: 'Каталог курсів', text: 'Оберіть курс і запишіться' },
@@ -65,7 +79,8 @@ export default async function Home() {
   if (user) {
     return (
       <div className="page">
-        <header className="page-head">
+        <header className="page-head welcome">
+          <Mascot mood="cheer" size={104} float follow />
           <div>
             <h1>EduForge</h1>
             <p className="lead">
@@ -79,8 +94,13 @@ export default async function Home() {
         <div className="grid">
           {shortcuts
             .filter((s) => !('role' in s) || user.roles.includes(s.role))
-            .map((s) => (
-              <Link key={s.href} href={s.href} className="card link shortcut">
+            .map((s, i) => (
+              <Link
+                key={s.href}
+                href={s.href}
+                className="card link shortcut"
+                data-tone={tones[i % tones.length]}
+              >
                 <span className="go" aria-hidden>
                   <Icon name="arrow-right" size={16} />
                 </span>
@@ -99,8 +119,14 @@ export default async function Home() {
   return (
     <div className="page">
       <section className="hero">
-        <div>
-          <h1>EduForge веде вас по графу знань</h1>
+        <div className="hero-copy">
+          <span className="eyebrow">
+            <span className="dot" aria-hidden />
+            Навчання без нудьги
+          </span>
+          <h1>
+            EduForge веде вас по <span className="marker">графу знань</span>
+          </h1>
           <p className="lead">
             Кожен новий вузол відкривається, коли ви справді розумієте попередній. Репетитор
             підказує, іспит підтверджує, а сертифікат можна перевірити.
@@ -114,18 +140,55 @@ export default async function Home() {
             </Link>
           </div>
         </div>
-        <HeroGraph />
+        <div className="hero-art">
+          <HeroGraph />
+          <div className="hero-mascot">
+            <span className="bubble">Ще крок — і «Цикли» відкриті!</span>
+            <Mascot mood="happy" size={132} float follow />
+          </div>
+          <span className="sticker s1" aria-hidden>
+            <Icon name="check" size={14} /> +1 вузол
+          </span>
+          <span className="sticker s2" aria-hidden>
+            80 % навичок
+          </span>
+        </div>
       </section>
       <section className="pillars" aria-label="Як це працює">
-        {pillars.map((p) => (
-          <div key={p.title} className="pillar">
+        {pillars.map((p, i) => (
+          <div key={p.title} className="pillar" data-tone={p.tone}>
+            <span className="pillar-no" aria-hidden>
+              0{i + 1}
+            </span>
             <span className="pillar-icon">
-              <Icon name={p.icon} size={18} />
+              <Icon name={p.icon} size={22} />
             </span>
             <h3>{p.title}</h3>
             <p>{p.text}</p>
           </div>
         ))}
+      </section>
+      <section className="path" aria-label="Шлях студента">
+        <ol>
+          {steps.map((s) => (
+            <li key={s.title}>
+              <span className="path-node">
+                <Icon name={s.icon} size={20} />
+              </span>
+              <span>{s.title}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+      <section className="cta-band">
+        <Mascot mood="cheer" size={120} float />
+        <div>
+          <h2>Готові розблокувати перший вузол?</h2>
+          <p>Реєстрація безкоштовна. Граф відкриється одразу після запису на курс.</p>
+        </div>
+        <Link href="/register" className="btn lg">
+          Почати навчання
+        </Link>
       </section>
     </div>
   );

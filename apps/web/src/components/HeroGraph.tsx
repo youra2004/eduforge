@@ -49,13 +49,16 @@ export function HeroGraph() {
         const s = stateStyle[n.state];
         return (
           <g key={n.title} transform={`translate(${n.x} ${n.y})`}>
-            <rect width={W} height={H} rx="12" style={{ fill: 'var(--card)' }} />
+            <rect width={W} height={H} rx="16" style={{ fill: 'var(--card)' }} />
+            {n.state === 'in_progress' && (
+              <rect className="pulse-ring" width={W} height={H} rx="16" fill="none" />
+            )}
             <rect
               width={W}
               height={H}
-              rx="12"
+              rx="16"
               style={{ fill: s.fill, stroke: s.stroke }}
-              strokeWidth={n.state === 'in_progress' ? 1.6 : 1}
+              strokeWidth={n.state === 'in_progress' ? 2.4 : 1.6}
               strokeDasharray={n.state === 'locked' ? '4 3' : undefined}
             />
             <rect x="0" y="12" width="3" height={H - 24} rx="1.5" style={{ fill: s.accent }} />
@@ -71,6 +74,29 @@ export function HeroGraph() {
             <text x="16" y="38" fontSize="10.5" style={{ fill: 'var(--muted)' }}>
               {n.skills}
             </text>
+            {n.state === 'passed' && (
+              <g className="badge-pop" transform={`translate(${W - 4} 2)`}>
+                <circle
+                  r="11"
+                  style={{ fill: 'var(--ok)', stroke: 'var(--card)' }}
+                  strokeWidth="3"
+                />
+                <path
+                  d="M-4.5 0.5l3 3 6-6.5"
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </g>
+            )}
+            {n.state === 'locked' && (
+              <g transform={`translate(${W - 24} ${H - 24})`} style={{ stroke: 'var(--muted-2)' }}>
+                <rect x="1" y="7" width="12" height="9" rx="2.5" fill="none" strokeWidth="1.7" />
+                <path d="M4 7V5a3 3 0 0 1 6 0v2" fill="none" strokeWidth="1.7" />
+              </g>
+            )}
             <circle cx="19" cy="51" r="3" style={{ fill: s.accent }} />
             <text x="27" y="54.5" fontSize="10.5" fontWeight="600" style={{ fill: s.accent }}>
               {s.label}
@@ -84,7 +110,7 @@ export function HeroGraph() {
         <rect
           width="162"
           height="92"
-          rx="14"
+          rx="18"
           style={{ fill: 'var(--card)', stroke: 'var(--line)' }}
         />
         <circle cx="18" cy="20" r="9" style={{ fill: 'var(--accent-soft)' }} />

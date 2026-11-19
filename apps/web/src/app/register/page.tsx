@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CONSENT_VERSIONS } from '@eduforge/core';
 import { AuthForm } from '@/components/AuthForm';
+import { AuthArt } from '@/components/ui';
 import { ConsentCheckbox } from '@/components/ConsentCheckbox';
 
 export const metadata = { title: 'Реєстрація' };
@@ -8,6 +9,11 @@ export const metadata = { title: 'Реєстрація' };
 export default function RegisterPage() {
   return (
     <div className="auth">
+      <AuthArt
+        mood="cheer"
+        title="Ваш граф знань чекає"
+        points={['Вузли відкриваються, коли ви готові', 'Сертифікат, який можна перевірити']}
+      />
       <div className="card auth-card">
         <h1>Реєстрація</h1>
         <p className="lead">Створіть акаунт, щоб проходити курси й підтверджувати знання.</p>
