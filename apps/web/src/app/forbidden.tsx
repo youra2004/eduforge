@@ -1,12 +1,10 @@
 import Link from 'next/link';
-import { Icon } from '@/components/icons';
+import { Mascot } from '@/components/Mascot';
 
 export default function Forbidden() {
   return (
     <div className="status-page">
-      <span className="empty-icon">
-        <Icon name="lock" size={20} />
-      </span>
+      <Mascot mood="oops" size={120} float />
       <h1>Доступ заборонено</h1>
       <p>
         У вас немає прав для перегляду цієї сторінки. Якщо вам потрібен доступ, зверніться до

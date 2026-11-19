@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { Mascot } from './Mascot';
 
 interface ChatMessage {
   role: 'student' | 'tutor';
@@ -81,7 +82,10 @@ export function TutorChat({
 
   return (
     <section className="tutor" data-testid="tutor-chat">
-      <h3>{title}</h3>
+      <h3>
+        <Mascot mood={busy ? 'think' : 'happy'} size={40} />
+        {title}
+      </h3>
       <p className="hint">
         Репетитор дає лише підказки на основі пройденого матеріалу і не показує правильних
         відповідей.
@@ -89,6 +93,7 @@ export function TutorChat({
       <ol className="tutor-messages" data-testid="tutor-messages">
         {messages.map((m, i) => (
           <li key={i} className={m.role} data-testid={`tutor-${m.role}`}>
+            {m.role === 'tutor' && <Mascot mood="happy" size={28} className="msg-avatar" />}
             <strong>{m.role === 'student' ? 'Ви' : 'Репетитор'}</strong>
             {m.role === 'tutor' && m.hintLevel && (
               <span className="muted" data-testid="hint-level">
