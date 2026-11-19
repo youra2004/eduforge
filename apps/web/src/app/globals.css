@@ -4438,6 +4438,10 @@ form[data-testid='question-form'] > button[type='submit'] {
   input[type='checkbox'] {
     appearance: auto;
   }
+  .options input[type='radio']::before,
+  input[type='checkbox']::before {
+    content: none;
+  }
 }
 
 /* Exam rules as numbered steps, the pre-flight checks with a status stripe */
