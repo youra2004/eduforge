@@ -182,6 +182,7 @@ export function Achievements({
           </span>
           <strong>{a.title}</strong>
           <span className="hint">{a.hint}</span>
+          <span className="sr-only">{a.done ? 'Отримано' : 'Ще попереду'}</span>
         </li>
       ))}
     </ul>

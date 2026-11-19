@@ -183,6 +183,7 @@ body {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
@@ -2865,7 +2866,7 @@ details[open] > summary {
   right: 20px;
 }
 .question-card .markdown {
-  max-width: calc(100% - 52px);
+  max-width: calc(100% - 72px);
 }
 .question-card form {
   gap: 4px;
@@ -4151,6 +4152,7 @@ a.card.tile {
   display: block;
   flex-shrink: 0;
   overflow: visible;
+  pointer-events: none;
 }
 .mascot .m-shadow {
   fill: rgba(30, 20, 120, 0.16);
@@ -4214,10 +4216,6 @@ a.card.tile {
   stroke-linejoin: round;
 }
 .mascot .m-mouth .fill {
-  fill: #1c1646;
-}
-.mascot.wow .m-mouth .fill,
-.mascot.cheer .m-mouth .fill {
   fill: #1c1646;
 }
 .mascot .drop {
@@ -4426,6 +4424,20 @@ p.error {
 
 form[data-testid='question-form'] > button[type='submit'] {
   justify-self: start;
+}
+@media (max-width: 560px) {
+  .question-mascot {
+    display: none;
+  }
+  .question-card .markdown {
+    max-width: none;
+  }
+}
+@media (forced-colors: active) {
+  .options input[type='radio'],
+  input[type='checkbox'] {
+    appearance: auto;
+  }
 }
 
 /* Exam rules as numbered steps, the pre-flight checks with a status stripe */

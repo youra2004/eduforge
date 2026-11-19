@@ -88,14 +88,16 @@ export default async function Page() {
 
       {mine.length > 0 && (
         <div className="tiles" data-testid="student-overview">
-          {[
-            { n: mine.length, what: 'курсів', tone: 'violet', icon: 'book' },
-            { n: nodesPassed, what: 'вузлів пройдено', tone: 'mint', icon: 'network' },
-            { n: certs.length, what: 'сертифікатів', tone: 'sun', icon: 'award' },
-          ].map((t) => (
+          {(
+            [
+              { n: mine.length, what: 'курсів', tone: 'violet', icon: 'book' },
+              { n: nodesPassed, what: 'вузлів пройдено', tone: 'mint', icon: 'network' },
+              { n: certs.length, what: 'сертифікатів', tone: 'sun', icon: 'award' },
+            ] as const
+          ).map((t) => (
             <div key={t.what} className="card tile" data-tone={t.tone}>
               <span className="tile-icon" aria-hidden>
-                <Icon name={t.icon as 'book'} size={18} />
+                <Icon name={t.icon} size={18} />
               </span>
               <span
                 className="num count-up"
